@@ -12,7 +12,7 @@ namespace
 {
 using namespace droz::ui;
 
-// Exemple de visuel : une onde (la matiere, en blanc) et une tete de lecture (ce qui joue, en rouge-orange).
+// Exemple de visuel : une onde (la matiere, en blanc) et une tete de lecture (ce qui joue, en orange).
 struct Onde final : Visual
 {
     void draw (juce::Graphics& g, juce::Rectangle<float> area, double seconds) override
@@ -97,7 +97,7 @@ struct Planche final : juce::Component
             g.setColour (colours::line);
             g.drawRoundedRectangle (pastille, 2.0f, 1.0f);
             g.setColour (colours::text);
-            g.setFont (mono (12.0f));
+            g.setFont (body (12.0f));
             g.drawText (juce::String (noms[i]) + "  #" + nuancier[i].toDisplayString (false), ligne.withTrimmedLeft (8), juce::Justification::centredLeft);
         }
     }

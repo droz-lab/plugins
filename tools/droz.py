@@ -105,6 +105,10 @@ def cmd_verifier(_) -> int:
     if not err:
         print(f"registre : {len(metas())} plugin(s), aucun conflit")
     # Non bloquant : un oubli ne doit pas faire rougir la PR de quelqu'un d'autre.
+    lisezmoi = README.read_text(encoding="utf-8")
+    for dossier, m in metas().items():
+        if not dossier.startswith("_") and lien_installeur(str(m.get("nom"))) not in lisezmoi:
+            print(f"A FAIRE vitrine : {m.get('nom')} manque dans le README, lancer `python tools/droz.py vitrine`")
     for e in ecarts_habillage():
         print("A FAIRE habillage (docs/HABILLAGE.md) :", e)
     return 1 if err else 0
@@ -176,32 +180,28 @@ def plugins_en_chantier() -> dict[str, tuple[str, dict]]:
     return trouves
 
 
-def etiquettes() -> set[str]:
-    distantes = {l.split("refs/tags/")[-1] for l in _git("ls-remote", "--tags", "origin").splitlines() if "refs/tags/" in l}
-    return distantes or set(_git("tag").split())
-
-
-def _ligne(nom: str, lien: str, meta: dict, etat: str, telecharger: str) -> str:
+def _ligne(nom: str, lien: str, meta: dict, telecharger: str) -> str:
     description = re.sub(r"\s*\(migre[^)]*\)", "", str(meta.get("description", ""))).replace("|", "/").strip() or "-"
+    if len(description) > 70:  # court : le detail est sur la page du plugin
+        description = description.split(" : ")[0].split(", ")[0].rstrip(".")
     auteur = {"yoy": "YoY", "zomban": "Zomban", "fx": "Fx", "equipe": "equipe"}.get(str(meta.get("auteur", "-")).lower(), meta.get("auteur", "-"))
-    return f"| [{nom}]({lien}) | {description} | {auteur} | {etat} | {telecharger} |"
+    return f"| [{nom}]({lien}) | {description} | {auteur} | {telecharger} |"
+
+
+def lien_installeur(nom: str) -> str:
+    return f"{DEPOT}/releases/download/dernier/{nom.replace(' ', '-')}-Setup.exe"
 
 
 def tableau_vitrine() -> str:
-    lignes = ["| Plugin | Ce qu'il fait | Par | Etat | Telecharger |", "|---|---|---|---|---|"]
-    publies = etiquettes()
+    lignes = ["| Plugin | Quoi | Par | Windows |", "|---|---|---|---|"]
+    # Dans main = publie : sortie.yml publie toute version fusionnee. Le lien "dernier" sert toujours la derniere.
     for dossier, m in metas().items():
-        if dossier.startswith("_"):
-            continue
-        nom = str(m.get("nom"))
-        # Deja publie au moins une fois : le lien fixe "dernier" sert toujours la derniere version.
-        if any(e.startswith(f"{dossier}-v") for e in publies):
-            lien = f"{DEPOT}/releases/download/dernier/{nom.replace(' ', '-')}-Setup.exe"
-            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, "publie", f"[Installer (Windows)]({lien})"))
-        else:
-            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, "pas encore publie", "-"))
+        if not dossier.startswith("_"):
+            lignes.append(_ligne(str(m.get("nom")), f"plugins/{dossier}/NOTES.md", m, f"[Installer]({lien_installeur(str(m.get('nom')))})"))
+    # Sur une branche = en chantier : les essais sont les fichiers des compilations de la branche (compte GitHub requis).
     for dossier, (branche, m) in sorted(plugins_en_chantier().items(), key=lambda x: str(x[1][1].get("nom")).lower()):
-        lignes.append(_ligne(str(m.get("nom")), f"{DEPOT}/tree/{branche}/plugins/{dossier}", m, "en chantier", "-"))
+        essais = f"{DEPOT}/actions/workflows/compilation.yml?query=branch%3A{branche.replace('/', '%2F')}+is%3Asuccess"
+        lignes.append(_ligne(str(m.get("nom")), f"{DEPOT}/tree/{branche}/plugins/{dossier}", m, f"en chantier, [essais]({essais})"))
     return "\n".join(lignes)
 
 
