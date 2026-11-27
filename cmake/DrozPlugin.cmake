@@ -68,6 +68,11 @@ function(droz_add_plugin dir)
       juce::juce_recommended_warning_flags)
   set_target_properties(${cible} PROPERTIES FOLDER "plugins/${dossier}")
 
+  # Reglages propres au plugin (ressources, fichiers fabriques) : plugins/<dossier>/plugin.cmake, facultatif.
+  if(EXISTS "${dir}/plugin.cmake")
+    include("${dir}/plugin.cmake")
+  endif()
+
   # Outil sans DAW : memes sources que le plugin, lance en ligne de commande.
   add_executable(${cible}_outil "${CMAKE_SOURCE_DIR}/tools/outil/outil.cpp")
   target_link_libraries(${cible}_outil PRIVATE ${cible} droz::dsp)

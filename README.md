@@ -18,7 +18,22 @@ Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 3. Ton Claude cree `plugins/<dossier>/`, pousse une branche et ouvre une PR. GitHub compile pour Windows et Mac.
 4. Recupere le plugin : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Windows` ou `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
 
+## Premiere contribution (test de l'atelier)
+
+1. Accepte l'invitation a l'organisation, ouvre Claude Code sur ce depot.
+2. Dis a ton Claude : `Lis CLAUDE.md. Je suis <prenom>. Ajoute plugins/premier-jet/equipe/<prenom>.txt avec la ligne "<ton texte>", ouvre une PR et envoie-moi la capture de l'interface.`
+3. Quand le controle Verdict est vert, fusionne ta PR (bouton Merge).
+4. Installe le plugin avec une des commandes ci-dessous et ouvre "Droz Premier Jet" dans ton DAW.
+
 ## Installer un plugin
+
+En une commande, derniere version publiee (par defaut `premier-jet`) :
+
+- Windows, dans PowerShell : `irm https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.ps1 | iex`
+- Mac, dans le Terminal : `curl -fsSL https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.sh | bash`
+
+A la main :
+
 
 - Windows : dezippe, copie le dossier `.vst3` dans `C:\Program Files\Common Files\VST3\`. Ferme le DAW avant de remplacer une version.
 - Mac : copie le `.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`, puis une fois par version dans le Terminal : `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"<Nom>.vst3"` (nos plugins ne sont pas signes par Apple).
@@ -64,6 +79,5 @@ ctest --test-dir build -C Release --output-on-failure
 
 ## A decider ensemble
 
-- Depot public ou prive. Public : compilation gratuite et illimitee. Prive : 2 000 minutes par mois, et une minute Mac en compte 10.
 - Licence. JUCE est gratuit sous AGPLv3 (code ouvert) ou payant sous licence commerciale : a trancher avant de distribuer hors du collectif.
 - Format CLAP pour Bitwig : pas dans JUCE 9.0.6, possible via clap-juce-extensions (a verifier avec JUCE 9).

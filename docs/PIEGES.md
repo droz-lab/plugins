@@ -7,7 +7,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx, verifie. JUCE 9 sous Linux demande aussi `libxi-dev`, `libxrender-dev` et `libxcomposite-dev`, absents des listes qu'on trouve partout. Sans eux : `X11/extensions/XInput2.h: No such file`. La liste complete est dans `compilation.yml`.
 - 2026-11-27, Fx, verifie. JUCE 9.0.6 ne produit pas de CLAP : aucune trace dans son CMake. Pour Bitwig en CLAP il faudra clap-juce-extensions, compatibilite JUCE 9 a verifier.
-- 2026-11-27, Fx, non verifie. Les jobs Windows et Mac de `compilation.yml` n'ont encore jamais tourne. Au premier echec : lire le journal du job, corriger, noter ici.
+- 2026-11-27, Fx, verifie. Premiere compilation verte sur Linux, Windows et Mac (run 1, plugin modele), environ 12 minutes.
+- 2026-11-27, Fx, non verifie. `tools/installer.ps1` et `tools/installer.sh` n'ont pas encore tourne sur une vraie machine Windows ou Mac. Au premier souci : corriger et noter ici.
 - 2026-11-27, YoY, rapporte. Chez lui la compilation Mac n'avait jamais tourne non plus, seule la Windows etait eprouvee.
 
 - 2026-11-27, Fx. Ecarts voulus avec le setup de YoY : JUCE 9.0.6 au lieu de 8.0.9, VST3 seul (pas d'AU ni de Standalone, pour compiler plus vite : `-DDROZ_FORMATS="VST3;AU"` si besoin), pluginval fige en v1.0.4, Linux compile aussi, travail par PR.
