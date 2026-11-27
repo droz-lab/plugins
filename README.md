@@ -23,7 +23,7 @@ Atelier commun du collectif Droz : nos plugins sont compiles et verifies automat
 <!-- vitrine:debut -->
 | Plugin | Ce qu'il fait | Version | Responsable |
 |---|---|---|---|
-| [Droz Premier Jet](plugins/premier-jet/NOTES.md) | Plugin de test de l'atelier : un gain, et le nom de chaque membre affiche dans l'interface. | 0.1.0 | equipe |
+| [Droz Premier Jet](plugins/premier-jet/NOTES.md) | Plugin de test de l'atelier : un gain, et le nom de chaque membre affiche dans l'interface. | 0.1.1 | equipe |
 <!-- vitrine:fin -->
 
 Pour refaire ce tableau apres un changement de `plugin.json` : `python tools/droz.py vitrine`.
