@@ -1,7 +1,7 @@
 {
   "nom": "Droz Software Center",
   "cible": "DrozSoftwareCenter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "auteur": "fx",
   "description": "Installer, mettre a jour et desinstaller tous les plugins Droz depuis une seule fenetre."
 }

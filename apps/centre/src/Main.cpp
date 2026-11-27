@@ -1,7 +1,7 @@
 // Droz Software Center : installer, mettre a jour et desinstaller les plugins Droz depuis une seule fenetre.
 //   DrozSoftwareCenter                        la fenetre
 //   DrozSoftwareCenter --essai ...            essai automatique sans fenetre (voir Essai.cpp)
-//   DrozSoftwareCenter --capture <dossier> --catalogue <fichier> --dossier <vst3>   images des onglets, sans ecran
+//   DrozSoftwareCenter --capture <dossier> --catalogue <fichier> --dossier <vst3>   images de la fenetre, sans ecran
 //   DrozSoftwareCenter --retirer <paquet.vst3>   usage interne : retrait avec les droits d'administrateur
 // --catalogue et --dossier marchent aussi avec la fenetre, pour essayer un catalogue local.
 
@@ -35,9 +35,7 @@ int capturer (const juce::StringArray& arguments)
     bool ok = true;
     {
         centre::Fenetre fenetre (o);
-        ok = ecrire (fenetre.capture (2.0f), sortie.getChildFile ("centre-plugins.png")) && ok;
-        fenetre.montrer (true);
-        ok = ecrire (fenetre.capture (2.0f), sortie.getChildFile ("centre-atelier.png")) && ok;
+        ok = ecrire (fenetre.capture (2.0f), sortie.getChildFile ("centre.png")) && ok;
     }
     {
         o.catalogue = sortie.getChildFile ("absent").getChildFile ("catalogue.json").getFullPathName();
@@ -57,7 +55,7 @@ public:
         fenetre = new centre::Fenetre (o);
         setContentOwned (fenetre, true);
         setResizable (true, false);
-        setResizeLimits (780, 480, 1600, 1400);
+        setResizeLimits (860, 560, 2400, 2000);
         centreWithSize (getWidth(), getHeight());
         setVisible (true);
     }

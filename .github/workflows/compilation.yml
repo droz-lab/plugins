@@ -5,14 +5,16 @@ name: Compilation
 # Mac : seulement a la demande (Run workflow, case "mac") et a chaque publication (sortie.yml).
 # Les zips sont dans l'onglet Actions > le run > Artifacts (30 jours). Versions durables : voir sortie.yml.
 
+# Se lance a chaque push, sur toutes les branches : une branche n'a pas besoin de PR pour avoir son Verdict,
+# et son plugin devient installable "a l'essai" des que le Verdict est vert (essais.yml).
+# Sur une branche, on compile tout ce qui differe de main.
+
 on:
-  pull_request:
   push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       plugins:
-        description: "Dossiers a compiler, separes par des virgules (vide = tous)"
+        description: "Dossiers a compiler, separes par des virgules (vide = tous, aucun = rien)"
         required: false
         default: ""
       mac:
@@ -74,7 +76,7 @@ jobs:
         env:
           DEMANDE: ${{ inputs.plugins }}
           EVENEMENT: ${{ github.event_name }}
-          BASE_PR: ${{ github.base_ref }}
+          BRANCHE: ${{ github.ref_name }}
           AVANT: ${{ github.event.before }}
           MAC: ${{ inputs.mac }}
           CENTRE: ${{ inputs.centre }}
@@ -87,10 +89,14 @@ jobs:
           else
             echo "matrice={\"include\":[$linux,$windows]}" >> "$GITHUB_OUTPUT"
           fi
-          if [ "$EVENEMENT" = "pull_request" ]; then base="origin/$BASE_PR"
-          elif [ "$EVENEMENT" = "push" ]; then base="$AVANT"
+          if [ "$EVENEMENT" = "push" ] && [ "$BRANCHE" = "main" ]; then base="$AVANT"
+          elif [ "$EVENEMENT" = "push" ]; then base="origin/main"
           else base="aucune"; fi
-          if [ -n "$DEMANDE" ]; then
+          if [ "$DEMANDE" = "aucun" ]; then
+            # Changement sans code (la page d'accueil refaite par centre.yml) : registre et tests de libs/ suffisent.
+            liste=""
+            centre=non
+          elif [ -n "$DEMANDE" ]; then
             liste=$(echo "$DEMANDE" | tr ',' ';' | tr -d ' ')
             centre=non
           else
@@ -327,11 +333,11 @@ jobs:
           Write-Host "essai : code $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { exit 1 }
 
-      - name: Captures des onglets (a comparer a docs/habillage.png)
+      - name: Captures de la fenetre (a comparer a docs/habillage.png)
         shell: pwsh
         run: |
           $p = Start-Process $env:APPLI -ArgumentList "--capture", "apercu-centre", "--catalogue", "essai\exemple.json", "--dossier", "essai\vst3-exemple" -Wait -PassThru
-          foreach ($image in "centre-plugins.png", "centre-atelier.png", "centre-sans-reseau.png") {
+          foreach ($image in "centre.png", "centre-sans-reseau.png") {
             if (-not (Test-Path "apercu-centre\$image")) { Write-Host "capture absente : $image"; exit 1 }
           }
           if ($p.ExitCode -ne 0) { exit 1 }

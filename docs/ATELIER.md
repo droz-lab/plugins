@@ -2,41 +2,17 @@
 
 Pour les membres du collectif. La page publique est le [README](../README.md).
 
-Tout l'atelier dans une appli : le [Droz Software Center](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Software-Center-Setup.exe) (Windows). Onglet Plugins : installer, mettre a jour, desinstaller, chantiers compris. Onglet Atelier : les PR en attente, les fiches a ecrire, et un bouton qui copie le message ci-dessous. Sans l'appli : [la page de l'atelier](https://github.com/droz-lab/plugins/releases/tag/dernier), a jour toute seule.
+Tout l'atelier dans une appli : le [Droz Software Center](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Software-Center-Setup.exe) (Windows). Une fenetre : chaque plugin avec sa fiche, sa version et un bouton pour l'installer ou le mettre a jour, chantiers compris. Sans l'appli : [la page de l'atelier](https://github.com/droz-lab/plugins/releases/tag/dernier), a jour toute seule.
 
-## Commencer ici : un seul message a coller
+## Commencer ici
 
-Le depot sait maintenant guider ton assistant tout seul. Tu donnes une idee, meme en une phrase : il la transforme en fiche de plugin, te pose ses questions en une fois, code, et le depot verifie derriere lui ce qu'on oublie tous (clics, plantages quand le DAW boucle, reglages perdus a la reouverture). Tu passes ton temps sur le son, pas sur la procedure.
+Rien a coller, rien a apprendre par coeur. Ouvre le depot `droz-lab/plugins` avec ton assistant et dis ce que tu veux, meme en une phrase : "bosse sur mon plugin", "ajoute un swing a mon gate", "fais-moi un delai qui degrade". Les regles du depot (`CLAUDE.md`, a la racine) se chargent toutes seules : il met ta branche a jour, transforme l'idee en fiche de plugin, te pose ses questions en une fois, code, et le depot verifie derriere lui ce qu'on oublie tous (clics, plantages quand le DAW boucle, reglages perdus a la reouverture).
+
+Ton assistant ne lit pas le depot tout seul (projet sur le site ou l'appli, sans terminal) : mets une fois, dans les instructions du projet, "Avant tout travail, lis CLAUDE.md a la racine du depot droz-lab/plugins et suis-le."
 
 Rien ne te bloque en version 0.x : la methode s'affiche en alertes, elle ne fait pas rougir ton travail. Elle devient stricte le jour ou tu decides de sortir une 1.0.0.
 
-Colle ce message tel quel dans ton assistant, ou que tu sois (appli, site, terminal). Remplace seulement ton prenom :
-
-```
-Tu travailles sur le depot GitHub droz-lab/plugins : les plugins audio du collectif Droz.
-Je suis <fx | yoy | zomban>. Fais tout ce qui suit dans l'ordre, sans me demander la permission a chaque etape.
-
-1. Ouvre ou clone https://github.com/droz-lab/plugins. Si tu n'y as pas acces, ou si tu ne peux pas
-   pousser une branche ni ouvrir une PR, dis-le-moi tout de suite et explique-moi pas a pas quoi faire.
-   Ne me demande jamais de coller un mot de passe ou un jeton ici.
-2. Retrouve ma branche de travail (elle commence par mon prenom). Mets-la a jour avec main :
-   git fetch origin main, puis git merge origin/main. S'il y a un conflit, garde mon travail dans
-   mon plugin. Dans un fichier commun (workflows, cmake, tools, docs), garde les deux changements
-   s'ils vont ensemble, sinon la version de main. Dis-moi ce que tu as fait.
-3. Lis CLAUDE.md en entier, puis docs/METHODE.md.
-4. Lance : python tools/droz.py bilan
-   Regle toi-meme tout ce qu'il liste sous "A REGLER".
-5. Pose-moi en UN seul message, avec des choix quand c'est possible, tout ce qu'il liste sous
-   "A DEMANDER" et tout ce qui te manque d'autre pour bien travailler. Range mes reponses la ou
-   CLAUDE.md le dit, pour ne plus jamais me les redemander.
-6. Pour chacun de mes plugins sans FICHE.md : ecris-la a partir de ce que le plugin fait deja,
-   note ce que tu supposes, et resume-la-moi en cinq lignes.
-7. Pousse, ouvre ou mets a jour la PR, attends le controle Verdict. S'il est rouge, lis le journal
-   et corrige. S'il y a des alertes, explique-les-moi simplement et propose la correction.
-8. Termine par trois lignes : ce qui a change, le lien de la PR, ce que je dois ecouter ou decider.
-```
-
-Les fois suivantes, dis simplement ce que tu veux ("ajoute un swing a mon gate", "fais-moi un delai qui degrade"). L'assistant refait son bilan tout seul. S'il ne le fait pas : "Lis CLAUDE.md et fais le bilan."
+Chaque push sur ta branche lance les controles. Des que le Verdict est vert, ton plugin est installable "a l'essai" dans le Droz Software Center, chez toi comme chez les autres, et il apparait sur la page d'accueil du depot. Pas besoin de PR pour ca.
 
 Une regle te gene, un controle te bloque a tort : ouvre une Issue. La methode est la pour nous servir, elle se corrige.
 
@@ -56,7 +32,7 @@ Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 Une phrase suffit aussi ("fais-moi un gate rythmique qui respire") : l'assistant doit alors remplir la fiche du plugin (`FICHE.md`) lui-meme, te poser trois questions au plus, et te la resumer avant de coder. C'est la [methode](METHODE.md), et le controle Verdict refuse un plugin sans fiche.
 
 3. L'assistant cree `plugins/<dossier>/`, pousse une branche et ouvre une PR. GitHub compile pour Windows (et Linux pour les tests). La version Mac se compile a la demande (Actions > Compilation > Run workflow, case "mac") et a chaque publication.
-4. Recupere le plugin : des que le controle Verdict de ta PR est vert, il apparait "a l'essai" dans le Droz Software Center, chez toi comme chez les autres. Rien a faire de ton cote. Mac : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
+4. Recupere le plugin : des que le controle Verdict de ta branche est vert, il apparait "a l'essai" dans le Droz Software Center, chez toi comme chez les autres. Rien a faire de ton cote. Mac : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
 
 ## Essayer le plugin d'un autre
 

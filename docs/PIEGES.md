@@ -51,6 +51,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 - 2026-11-27, Fx. Un workflow lance par `pull_request` n'a pas le droit d'ecrire une Release. Pour publier a partir d'un run de PR (les essais) : un second workflow lance par `workflow_run`, qui tourne avec le code de `main`. Il ne doit rien executer de la branche, et ignorer les PR venues d'un autre depot.
 - 2026-11-27, Fx, non verifie. Une appli fenetree lancee depuis PowerShell rend la main tout de suite et n'affiche rien dans la console : `Start-Process -Wait -PassThru` pour attendre et lire son code de sortie, et un fichier journal pour son texte (`--journal`).
 
+- 2026-11-27, Fx. Un workflow ne peut pas pousser dans `main` protegee, et un push fait avec son jeton ne lance aucun autre workflow. Pour qu'un robot range un fichier dans `main` (le README) : il pousse une branche, ouvre une PR, lance lui-meme le Verdict par `workflow_dispatch` (la seule chose que son jeton peut declencher), et fusionne quand c'est vert. Voir `centre.yml`.
+
 ## Habillage
 
 - 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.

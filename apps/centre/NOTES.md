@@ -4,12 +4,13 @@ Responsable : Fx
 
 ## But
 
-Une appli Windows qui liste tous les plugins Droz, les installe, les met a jour et les desinstalle depuis une seule fenetre. Plugins publies et plugins en chantier ("essai"). Un onglet Atelier dit ce qui attend et copie le message a coller dans son assistant.
+Une appli Windows qui liste tous les plugins Droz, les installe, les met a jour et les desinstalle depuis une seule fenetre. Plugins publies et plugins en chantier ("essai"). Pour chacun : sa fiche en clair, sa version, un bouton.
 
 Telecharger : `Droz-Software-Center-Setup.exe` sur la [page de l'atelier](https://github.com/droz-lab/plugins/releases/tag/dernier).
 
 ## Etat
 
+- v0.2.0 : une seule fenetre, plus grande. Chaque plugin montre l'intention et les reglages de sa `FICHE.md`. Icone Droz. L'onglet Atelier, le message a copier et les liens sont retires.
 - v0.1.0 : premiere version. Onglets Plugins et Atelier, dossier VST3 au choix, "Tout mettre a jour", plugin verrouille par un DAW detecte avant de toucher a quoi que ce soit, affichage sans reseau.
 
 ## Comment ca marche
@@ -17,7 +18,7 @@ Telecharger : `Droz-Software-Center-Setup.exe` sur la [page de l'atelier](https:
 | Morceau | Ou | Role |
 |---|---|---|
 | Catalogue | `catalogue.json` sur la page `dernier`, ecrit par `python tools/droz.py catalogue` (`centre.yml`) | plugins publies, plugins a l'essai, PR en attente, fiches a ecrire, message a coller, derniere version de l'appli |
-| Essais | page `essais`, remplie par `essais.yml` apres chaque Verdict vert d'une branche | un installeur par plugin en chantier, toujours le dernier, et `essais.json` qui dit de quel commit il vient |
+| Essais | page `dernier`, comme tout le reste, remplie par `essais.yml` apres chaque Verdict vert d'une branche (un push suffit, pas besoin de PR) | un installeur par plugin en chantier, toujours le dernier, et `essais.json` qui dit de quel commit il vient |
 | Installer | l'appli telecharge l'installeur du plugin (`tools/installeur.iss`) et le lance en silencieux avec `/DIR=<dossier VST3>` | Windows demande les droits a chaque installation (pas de signature de code) |
 | Ce qui est installe | `<Nom>.vst3\Contents\Resources\droz.ini`, pose par l'installeur : `version` et `build` | la verite est sur le disque, pas dans un registre de l'appli. Sans ce fichier : `moduleinfo.json` |
 | Desinstaller | l'appli retire le paquet `.vst3`. Dossier protege : elle se relance avec les droits (`--retirer`) juste pour ce retrait | |
@@ -61,9 +62,11 @@ Monter `version` dans `apps/centre/app.json`, fusionner. `sortie.yml` cree la Re
 - 2026-11-27, Fx. Un essai garde souvent le meme numero de version d'un commit a l'autre : c'est le `build` (7 premiers caracteres du commit) qui dit s'il y a du nouveau.
 - 2026-11-27, Fx. Les essais ne sont publies que pour les branches du depot, jamais pour une PR venue d'un autre depot : sinon n'importe qui pourrait faire distribuer un executable par l'appli.
 
+- 2026-11-27, Fx. Retour a chaud sur la 0.1.0 : trop d'infos. Une seule fenetre, les fiches, les versions, un bouton. Ce qui sert aux membres (ou en est l'atelier) vit sur la page d'accueil du depot, pas dans l'appli.
+- 2026-11-27, Fx. Icone : l'image du collectif (`icone.png`), la meme que l'avatar de l'organisation.
+
 ## Pas dans cette version
 
 - Mise a jour a chaud d'un plugin charge dans un DAW : Windows verrouille le fichier, et le DAW garde l'ancienne version en memoire.
 - Signature du code : Windows affiche un avertissement a l'installation de l'appli. Pistes dans `docs/METHODE.md`, partie 5.
-- Icone de l'appli : celle de JUCE par defaut, il manque un pictogramme Droz carre dans le depot.
 - Suivi detaille des chantiers, journal des versions, boite a idees, comptes, licences.

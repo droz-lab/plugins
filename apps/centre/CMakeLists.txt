@@ -7,6 +7,7 @@ string(JSON centre_version GET "${centre_meta}" version)
 
 juce_add_gui_app(DrozSoftwareCenter
   PRODUCT_NAME "DrozSoftwareCenter"
+  ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/icone.png"
   VERSION "${centre_version}"
   COMPANY_NAME "Droz")
 
