@@ -34,6 +34,7 @@ Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 | `tools/droz.py` | Creer un plugin, verifier le registre | PR relue |
 | `tools/outil/` | Tests communs, rendu WAV et capture d'interface sans DAW | PR relue |
 | `.github/workflows/` | Compilation et sorties | PR relue |
+| `equipe/<prenom>/JOURNAL.md` | Journal de bord de chacun | Son auteur |
 | `CLAUDE.md`, `docs/PIEGES.md` | Regles et lecons communes a tous nos Claude | PR relue (PIEGES : ajout libre) |
 
 ## Regles du jeu

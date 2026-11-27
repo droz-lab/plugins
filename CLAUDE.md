@@ -5,7 +5,7 @@ Depot commun a plusieurs personnes et plusieurs Claude. Ces regles gardent le de
 ## Debut de session
 
 1. `python tools/droz.py liste` : les plugins et leurs responsables.
-2. Lis `docs/PIEGES.md` et le `NOTES.md` du plugin concerne.
+2. Lis `docs/PIEGES.md`, le `NOTES.md` du plugin concerne et `equipe/<prenom>/JOURNAL.md` de la personne.
 3. Demande a la personne son prenom et son plugin si ce n'est pas clair. Ne touche pas au plugin d'un autre sans qu'il l'ait demande.
 
 ## Creer un plugin
@@ -53,6 +53,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 ## Memoire
 
 - `plugins/<dossier>/NOTES.md` : memoire du plugin (but, etat, decisions, ce qui a ete essaye et abandonne). A mettre a jour a chaque session.
+- `equipe/<prenom>/JOURNAL.md` : journal de bord de chacun, une entree par session, en haut. On n'ecrit que dans celui de la personne en cours.
 - `docs/PIEGES.md` : lecons utiles a tous. Ajout libre, une entree courte, datee, avec le prenom.
 - Ce fichier : regles stables. Il ne grossit pas. Modification par PR `commun:` uniquement.
 
@@ -64,4 +65,4 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 
 ## Fin de session
 
-Trois lignes pour la personne : ce qui a change, le lien du run ou de la PR, ce qu'il faut ecouter ou decider.
+Ajoute l'entree du jour dans `equipe/<prenom>/JOURNAL.md`, puis trois lignes pour la personne : ce qui a change, le lien du run ou de la PR, ce qu'il faut ecouter ou decider.
