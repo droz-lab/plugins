@@ -13,9 +13,17 @@ on:
         description: "Dossiers a compiler, separes par des virgules (vide = tous)"
         required: false
         default: ""
+      systemes:
+        description: "Systemes a compiler, separes par des virgules : Windows, Mac, Linux"
+        required: false
+        default: "Windows"
   workflow_call:
     inputs:
       plugins:
+        type: string
+        required: false
+        default: ""
+      systemes:
         type: string
         required: false
         default: ""
@@ -36,6 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       liste: ${{ steps.choix.outputs.liste }}
+      matrice: ${{ steps.systemes.outputs.matrice }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,6 +74,23 @@ jobs:
           fi
           echo "liste=$liste" >> "$GITHUB_OUTPUT"
           echo "Plugins a compiler : ${liste:-aucun}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Systemes a compiler
+        id: systemes
+        env:
+          DEMANDE: ${{ inputs.systemes }}
+        run: |
+          # Vide (PR, push, sortie) = tous. Lancement a la main : Windows par defaut.
+          python3 - "$DEMANDE" >> "$GITHUB_OUTPUT" <<'PY'
+          import json, sys
+          tous = {
+              "Linux": {"nom": "Linux", "os": "ubuntu-latest", "pluginval": "pluginval_Linux.zip", "binaire": "./pluginval"},
+              "Windows": {"nom": "Windows", "os": "windows-latest", "pluginval": "pluginval_Windows.zip", "binaire": "./pluginval.exe"},
+              "Mac": {"nom": "Mac", "os": "macos-latest", "pluginval": "pluginval_macOS.zip", "binaire": "./pluginval.app/Contents/MacOS/pluginval"},
+          }
+          demande = [x.strip().capitalize() for x in sys.argv[1].split(",") if x.strip()] or list(tous)
+          choisis = [tous[x] for x in demande if x in tous] or list(tous.values())
+          print("matrice=" + json.dumps({"include": choisis}))
+          PY
 
   plugins:
     name: ${{ matrix.nom }}
@@ -73,11 +99,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { nom: Linux, os: ubuntu-latest, pluginval: pluginval_Linux.zip, binaire: ./pluginval }
-          - { nom: Windows, os: windows-latest, pluginval: pluginval_Windows.zip, binaire: ./pluginval.exe }
-          - { nom: Mac, os: macos-latest, pluginval: pluginval_macOS.zip, binaire: ./pluginval.app/Contents/MacOS/pluginval }
+      matrix: ${{ fromJSON(needs.preparer.outputs.matrice) }}
     defaults:
       run:
         shell: bash
@@ -135,22 +157,35 @@ jobs:
             done
           done
 
-      - name: Zips
+      - name: Fichiers a telecharger
+        id: dist
+        env:
+          LISTE: ${{ needs.preparer.outputs.liste }}
         run: |
+          # Windows : le dossier .vst3 tel quel (GitHub fait deja un zip : pas de zip dans le zip).
+          # Mac et Linux : un zip, pour garder les liens et les droits du bundle.
           mkdir -p dist
           while IFS= read -r vst; do
             nom=$(basename "$vst" .vst3)
             zip="$PWD/dist/${nom// /-}-${{ matrix.nom }}.zip"
-            if [ "$RUNNER_OS" = "macOS" ]; then ditto -c -k --keepParent "$vst" "$zip"
-            elif [ "$RUNNER_OS" = "Windows" ]; then (cd "$(dirname "$vst")" && 7z a -tzip "$(cygpath -w "$zip")" "$(basename "$vst")" > /dev/null)
+            if [ "$RUNNER_OS" = "Windows" ]; then cp -r "$vst" dist/
+            elif [ "$RUNNER_OS" = "macOS" ]; then ditto -c -k --keepParent "$vst" "$zip"
             else (cd "$(dirname "$vst")" && zip -q -r "$zip" "$(basename "$vst")"); fi
           done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
           ls -la dist
+          # Un seul plugin : le telechargement porte son nom (ex. Courbes-Windows).
+          if [ "$(echo "$LISTE" | tr ';' '\n' | grep -c .)" = 1 ]; then
+            py=$(command -v python3 || command -v python)
+            nom=$("$py" -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['nom'])" "$LISTE" | tr -d '\r')
+            echo "nom=${nom// /-}-${{ matrix.nom }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "nom=plugins-${{ matrix.nom }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: plugins-${{ matrix.nom }}
-          path: dist/*.zip
+          name: ${{ steps.dist.outputs.nom }}
+          path: dist/
           retention-days: 30
           if-no-files-found: error
 
