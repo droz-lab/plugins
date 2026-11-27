@@ -538,7 +538,17 @@ void testState()
     std::minstd_rand rng (777);
     std::uniform_real_distribution<float> dist (0.0f, 1.0f);
     for (auto* p : a->getParameters())
-        p->setValueNotifyingHost (dist (rng));
+    {
+        float v = dist (rng);
+        // Interrupteur ou liste : une valeur qu'un hote envoie vraiment (un cran), pas 0,37. Sinon un
+        // juce::AudioParameterBool garde 0,37 d'un cote et retrouve 0 de l'autre, et le test accuse a tort.
+        if (p->isDiscrete())
+        {
+            const int crans = std::max (2, p->getNumSteps());
+            v = std::round (v * static_cast<float> (crans - 1)) / static_cast<float> (crans - 1);
+        }
+        p->setValueNotifyingHost (v);
+    }
 
     juce::MemoryBlock saved;
     a->getStateInformation (saved);
@@ -639,7 +649,18 @@ void testClicks (bool synth)
         });
         ++tested;
         const float step = maxStep (out), pk = std::max (peak (out), 1.0e-3f);
+        // Un son peut avoir des fronts raides sans que personne ne touche au reglage (saturation, feedback,
+        // boucle tres courte). On ne compte comme clic que ce qui depasse nettement le reglage tenu a un extreme.
+        float repos = 0.0f;
         if (step > 0.2f * pk)
+            for (const float tenu : { 0.0f, 1.0f })
+            {
+                auto q = make();
+                configure (*q, 2, sr, block);
+                q->getParameters()[index]->setValueNotifyingHost (tenu);
+                repos = std::max (repos, maxStep (run (*q, in, block)));
+            }
+        if (step > 0.2f * pk && step > 1.5f * repos)
         {
             fail ("clics", "'" + paramId (*param) + juce::String::formatted ("' : saut de %.1f dBFS quand il passe d'un extreme a l'autre (lisser le parametre)", toDb (step)));
             return;
