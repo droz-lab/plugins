@@ -55,6 +55,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx. PowerShell : `BaseName` d'un dossier garde l'extension (`Droz Courbes.vst3`), contrairement a un fichier. Pour le nom d'un paquet `.vst3` : `[System.IO.Path]::GetFileNameWithoutExtension($dossier.Name)`.
 
+- 2026-11-27, Fx. Tests communs, deux faux positifs corriges dans `tools/outil/outil.cpp`. "etat" : un `juce::AudioParameterBool` garde la valeur brute qu'on lui envoie (0,37) mais se sauve en 0 ou 1 ; le test envoie maintenant un cran entier aux interrupteurs et aux listes, comme un hote. "clics" : un son a fronts raides (feedback sature, boucle tres courte) depassait le seuil sans qu'on touche au reglage ; le test compare maintenant au meme reglage tenu a chaque extreme.
+
 ## Habillage
 
 - 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.

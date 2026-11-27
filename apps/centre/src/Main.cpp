@@ -55,9 +55,16 @@ public:
         fenetre = new centre::Fenetre (o);
         setContentOwned (fenetre, true);
         setResizable (true, false);
-        setResizeLimits (860, 560, 2400, 2000);
+        setResizeLimits (680, 520, 2400, 2000);
         centreWithSize (getWidth(), getHeight());
         setVisible (true);
+    }
+
+    void activeWindowStatusChanged() override
+    {
+        DocumentWindow::activeWindowStatusChanged();
+        if (isActiveWindow() && fenetre != nullptr)
+            fenetre->revenir();
     }
 
     void closeButtonPressed() override

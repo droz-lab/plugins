@@ -10,6 +10,7 @@ Telecharger : `Droz-Software-Center-Setup.exe` sur la [page de l'atelier](https:
 
 ## Etat
 
+- v0.3.0 : interface reprise a la charte (tailles de texte, marges et grille de `docs/HABILLAGE.md`). Une grille de cartes centree, tout est symetrique. Plus de bouton Actualiser : le catalogue se relit quand la fenetre revient devant, ou avec F5. "Tout mettre a jour" n'apparait que s'il y a quelque chose a mettre a jour.
 - v0.2.0 : une seule fenetre, plus grande. Chaque plugin montre l'intention et les reglages de sa `FICHE.md`. Icone Droz. L'onglet Atelier, le message a copier et les liens sont retires.
 - v0.1.0 : premiere version. Onglets Plugins et Atelier, dossier VST3 au choix, "Tout mettre a jour", plugin verrouille par un DAW detecte avant de toucher a quoi que ce soit, affichage sans reseau.
 
@@ -64,6 +65,8 @@ Monter `version` dans `apps/centre/app.json`, fusionner. `sortie.yml` cree la Re
 
 - 2026-11-27, Fx. Retour a chaud sur la 0.1.0 : trop d'infos. Une seule fenetre, les fiches, les versions, un bouton. Ce qui sert aux membres (ou en est l'atelier) vit sur la page d'accueil du depot, pas dans l'appli.
 - 2026-11-27, Fx. Icone : l'image du collectif (`icone.png`), la meme que l'avatar de l'organisation.
+
+- 2026-11-27, Fx. Retour sur la 0.2.0 : symetrique, epure, a la charte. D'ou les cartes centrees, les tailles de texte de la charte (15, 13, 11, 9) et un seul bouton par carte quand c'est possible.
 
 ## Pas dans cette version
 
