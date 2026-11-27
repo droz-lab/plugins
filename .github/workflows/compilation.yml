@@ -163,10 +163,44 @@ jobs:
           done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
           ls -la dist
 
+      - name: Installeur Windows (un double-clic pose le plugin dans le dossier VST3)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $sortie = Join-Path $PWD "dist"
+          $plugins = Get-ChildItem build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.Parent.Name -eq "VST3" }
+          if (-not $plugins) { Write-Host "aucun .vst3 produit"; exit 1 }
+          foreach ($vst in $plugins) {
+            $nom = $vst.BaseName
+            $version = "0.0.0"
+            $info = Join-Path $vst.FullName "Contents\Resources\moduleinfo.json"
+            if ((Test-Path $info) -and ((Get-Content $info -Raw) -match '"Version":\s*"([0-9.]+)"')) { $version = $Matches[1] }
+            $fichier = ($nom -replace " ", "-") + "-Setup"
+            & $iscc /Qp "/DNom=$nom" "/DVersion=$version" "/DSource=$($vst.FullName)" "/DSortie=$sortie" "/DFichier=$fichier" tools\installeur.iss
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          Get-ChildItem dist
+
+      - name: Essai de l'installeur Windows (installation silencieuse, puis verification)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($setup in Get-ChildItem dist -Filter *-Setup.exe) {
+            $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+            if ($p.ExitCode -ne 0) { Write-Host "$($setup.Name) : code $($p.ExitCode)"; exit 1 }
+          }
+          foreach ($vst in (Get-ChildItem build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.Parent.Name -eq "VST3" })) {
+            $pose = Join-Path $env:CommonProgramFiles "VST3\$($vst.Name)\Contents\x86_64-win\$($vst.Name)"
+            if (-not (Test-Path $pose)) { Write-Host "absent apres installation : $pose"; exit 1 }
+            Write-Host "installe : $pose"
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: plugins-${{ matrix.nom }}
-          path: dist/*.zip
+          path: dist/*
           retention-days: 30
           if-no-files-found: error
 

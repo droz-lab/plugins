@@ -85,4 +85,11 @@ jobs:
           notes="plugins/$DOSSIER/NOTES.md"
           [ -f "$notes" ] || notes=README.md
           # Cree aussi l'etiquette si elle n'existe pas encore (publication par le bouton).
-          gh release create "$TAG" recu/plugins-*/*.zip recu/apercu/*.png --title "$TAG" --notes-file "$notes" --target "$GITHUB_SHA"
+          gh release create "$TAG" recu/plugins-*/* recu/apercu/*.png --title "$TAG" --notes-file "$notes" --target "$GITHUB_SHA"
+
+          # Page fixe "dernier" : toujours la derniere version publiee de chaque plugin, memes noms de fichiers.
+          if ! gh release view dernier > /dev/null 2>&1; then
+            gh release create dernier --title "Telecharger les plugins (dernieres versions)" --latest=false --target "$GITHUB_SHA" \
+              --notes "Windows : telecharge le fichier -Setup.exe du plugin et double-clique. Windows previent que l'editeur est inconnu (nos plugins ne sont pas signes) : Informations complementaires, puis Executer quand meme. Mac : telecharge le -Mac.zip et suis le README, ou utilise la commande d'installation du README."
+          fi
+          gh release upload dernier recu/plugins-*/* --clobber
