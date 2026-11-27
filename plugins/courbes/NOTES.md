@@ -22,10 +22,24 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
     (calage tempo, plage, canal, transport arrete, etat).
   - Pas encore ecoute / teste dans un DAW.
 
+- 2026-11-27 (suite) : retours de Zomban.
+  - Slider "Longueur" (1/32 a 16 mesures) + bouton "Ternaire" pour inclure ou non les T.
+  - Grille 1/4 a 1/32 + bouton "Ternaire" + "Aimant" (Maj = inverse).
+  - Decalage, Minimum, Maximum, Lissage en sliders. "Ecoute" en On/Off.
+  - 16 familles (dont Gates, Gates euclidiens, Gates nuances, Hasard lisse / brutal / nerveux,
+    Derive, Harmoniques, Pulsations, Arpeges), 4 reglages par famille qui refont la forme en direct,
+    "Relancer" (nouveau tirage) et "Generer" (tout au hasard).
+  - Evolution : a chaque cycle (ou tous les N), tirage Garder / Revenir / Varier / Changer, avec
+    Intensite et chances par famille. Tirage seme par la position : meme endroit = meme suite.
+    Lecture relancee ailleurs : repart de la courbe de base.
+  - Verifie : tests communs 9/9, pluginval 5, test a part (ternaire, evolution, etat).
+  - Identite visuelle "Zomban" : rien trouve d'exploitable en ligne (SoundCloud djzomban inaccessible
+    d'ici). En attente d'images / couleurs de Zomban.
+
 ## A faire / idees
 
 - Tester dans Bitwig et Ableton le routage du CC (voir "Utilisation" ci-dessous) et noter ce qui marche.
-- Plusieurs sorties (2 a 4 courbes, un CC chacune) : une "famille" jouee en meme temps.
+- Plusieurs sorties (2 a 4 courbes, un CC chacune).
 - Declenchement par note MIDI (la courbe repart a chaque note) en plus du tempo.
 - CC 14 bits pour les parametres qui demandent de la finesse.
 - Sauvegarder ses propres formes dans une famille "Mes courbes".
@@ -39,6 +53,10 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
   demande Max for Live.
 
 ## Decisions et lecons
+
+- Parametres v0.1 abandonnes (ne jamais reutiliser) : "vitesse", "ecoute".
+- Interrupteurs en AudioParameterChoice Non/Oui, pas AudioParameterBool (voir PIEGES).
+- Evolution calculee dans le fil audio : generer() et trier() sont sans allocation (tri par insertion).
 
 - 2026-11-27 : nom "Courbes" (plus "Droz Courbes"). Fichiers a telecharger au nom du plugin
   (Courbes-Windows), pas de zip dans un zip, Windows seulement sauf demande de Zomban.
