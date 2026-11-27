@@ -63,6 +63,7 @@ jobs:
     uses: ./.github/workflows/compilation.yml
     with:
       plugins: ${{ needs.lire.outputs.dossier }}
+      mac: true
 
   publier:
     name: Publication

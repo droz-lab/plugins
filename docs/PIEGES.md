@@ -36,3 +36,9 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 - 2026-11-27, Fx, verifie. Un tiret long ou un caractere special dans un nom de fichier zippe casse la decompression sur certains systemes (`mapname: conversion failed` sous Linux). Noms de fichiers en ASCII, tirets simples.
 - 2026-11-27, Fx, verifie. Les Artifacts d'Actions demandent un compte GitHub et expirent (30 jours ici). Pour donner un plugin a quelqu'un : une Release (etiquette `<dossier>-v<version>`).
 - 2026-11-27, Fx, a retenir. Deux plugins avec le meme couple (code fabricant, code) sont confondus par le DAW. `tools/droz.py verifier` bloque les doublons. Un plugin deja sorti ailleurs garde ses codes d'origine via `fabricant` et `code_fabricant` dans son `plugin.json`.
+
+## Habillage
+
+- 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.
+- 2026-11-27, Fx, verifie. `juce::String::toUpperCase` laisse les lettres accentuees en minuscule sous Linux. Utiliser `droz::ui::upper`.
+- 2026-11-27, Fx. Durees relevees sur les trois premiers runs : Linux 7 a 8 min, Windows 6 a 12 min, Mac 2 a 10 min, en parallele. Retirer le Mac des PR ne raccourcit pas l'attente, ca economise seulement du calcul.
