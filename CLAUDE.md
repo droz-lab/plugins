@@ -33,7 +33,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 1. Les tests communs passent (`ctest`, ou le run Actions) : sortie finie, retour au silence, etat sauvegarde et recharge, pas de clic, interface qui s'ouvre et se rouvre.
 2. pluginval passe (niveau 5).
 3. Tu as produit une capture de l'interface (regarde-la toi-meme, compare-la a `docs/habillage.png`, puis envoie-la : la personne est peut-etre sur son telephone) et au moins un rendu WAV sec + traite, et tu dis quoi ecouter et ou le telecharger.
-4. `plugins/<dossier>/NOTES.md` est a jour.
+4. `plugins/<dossier>/NOTES.md` est a jour. Plugin cree, renomme ou publie : relance `python tools/droz.py vitrine` (tableau du README).
 
 ## Regles de code
 

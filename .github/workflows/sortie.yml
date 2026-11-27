@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       dossier:
-        description: "Dossier du plugin a publier (ex. premier-jet)"
+        description: "Dossier du plugin a publier (ex. test-v0)"
         required: true
 
 permissions:

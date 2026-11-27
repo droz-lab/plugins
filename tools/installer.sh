@@ -1,9 +1,9 @@
 #!/bin/bash
 # Installe sur Mac la derniere version publiee d'un plugin du depot droz-lab/plugins.
 #   curl -fsSL https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.sh | bash
-#   ... | bash -s -- <dossier>        (par defaut : premier-jet)
+#   ... | bash -s -- <dossier>        (par defaut : test-v0)
 set -euo pipefail
-plugin="${1:-premier-jet}"
+plugin="${1:-test-v0}"
 dest="$HOME/Library/Audio/Plug-Ins/VST3"
 url=$(curl -fsSL "https://api.github.com/repos/droz-lab/plugins/releases?per_page=100" \
   | grep -o "https://[^\"]*/releases/download/${plugin}-v[^/\"]*/[^\"]*-Mac\.zip" | head -n 1 || true)

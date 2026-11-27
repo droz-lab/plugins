@@ -8,7 +8,7 @@ Tout est dans `libs/droz_ui/include/droz/ui.h` (`droz::ui`). La planche ci-desso
 
 ## La regle
 
-L'habillage Droz est obligatoire pour tous les plugins du depot, quel que soit l'auteur et quel que soit son Claude : a la creation, et a chaque mise a jour.
+L'habillage Droz est obligatoire pour tous les plugins du depot, quel que soit l'auteur : a la creation, et a chaque mise a jour.
 
 - Un plugin se monte avec `droz::ui`. Pas de couleur, de police ni de controle dessine en dehors.
 - Un plugin plus ancien, pas encore a la charte, y passe a sa prochaine mise a jour.

@@ -34,7 +34,7 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 - 2026-11-27, Fx. Installeur Windows (`tools/installeur.iss`, Inno Setup) : construit et essaye en installation silencieuse a chaque compilation Windows. Non signe, donc avertissement SmartScreen au premier lancement.
 - 2026-11-27, Fx, verifie. PowerShell : `BaseName` d'un dossier garde son extension (`Droz Modele.vst3`). Le premier installeur posait `Droz Modele.vst3.vst3`, l'essai automatique l'a attrape. Retirer l'extension a la main.
 
-- 2026-11-27, Fx, verifie. Depuis Claude Code sur le web, pousser une etiquette git est refuse (HTTP 403), seules les branches passent. Publier par le bouton : Actions > Sortie > Run workflow.
+- 2026-11-27, Fx, verifie. Depuis une session distante, pousser une etiquette git est refuse (HTTP 403), seules les branches passent. Publier par le bouton : Actions > Sortie > Run workflow.
 
 - 2026-11-27, Fx, verifie. Un tiret long ou un caractere special dans un nom de fichier zippe casse la decompression sur certains systemes (`mapname: conversion failed` sous Linux). Noms de fichiers en ASCII, tirets simples.
 - 2026-11-27, Fx, verifie. Les Artifacts d'Actions demandent un compte GitHub et expirent (30 jours ici). Pour donner un plugin a quelqu'un : une Release (etiquette `<dossier>-v<version>`).
