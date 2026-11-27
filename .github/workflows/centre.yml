@@ -89,7 +89,9 @@ jobs:
           if [ -z "$pr" ]; then
             pr=$(gh api "repos/$DEPOT/pulls" -f title="accueil: page d'accueil refaite" -f head=robot/accueil -f base=main \
                  -f body="Page d'accueil refaite par \`python tools/droz.py accueil\`. Un seul fichier : README.md. Fusionnee toute seule quand le Verdict est vert." \
-                 --jq .number 2> /dev/null || true)
+                 --jq '.number // empty' 2> /dev/null || true)
+            # Refus de GitHub : la reponse d'erreur n'a pas de numero.
+            case "$pr" in ''|*[!0-9]*) pr="" ;; esac
             if [ -z "$pr" ]; then
               dire "Page d'accueil : le robot n'a pas le droit d'ouvrir une PR. A cocher une fois : Settings > Actions > General > Allow GitHub Actions to create and approve pull requests."
               exit 0

@@ -19,19 +19,19 @@ Les plugins en cours de fabrication. Chaque mise a jour d'une branche qui passe 
 
 ### Droz Courbes
 
-`0.4.0 en chantier` - par Zomban
+`0.4.0 essai` - par Zomban
 
 Generateur de courbes synchronisees au tempo, rangees par familles (rampes, pompes, marches, rebonds...), envoyees en MIDI CC pour moduler n'importe quel parametre.
 
-pas encore installable · [suivre le chantier](https://github.com/droz-lab/plugins/tree/zomban/courbes-famille/plugins/courbes)
+[Installer l'essai (Windows)](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Courbes-Setup.exe) · [suivre le chantier](https://github.com/droz-lab/plugins/tree/zomban/courbes-famille/plugins/courbes)
 
 ### Droz Master
 
-`0.1.0 en chantier` - par YoY
+`0.1.0 essai` - par YoY
 
 Chaine de mastering a modules reordonnables : EQ, EQ dynamique, compresseur a styles, multibande, suppresseur de resonances, exciter multibande, clipper, limiteur. Chaque module en stereo, mid-side, gauche-droite ou transitoire-tonal.
 
-pas encore installable · [suivre le chantier](https://github.com/droz-lab/plugins/tree/claude/eloquent-carson-svfmmm/plugins/master)
+[Installer l'essai (Windows)](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Master-Setup.exe) · [suivre le chantier](https://github.com/droz-lab/plugins/tree/claude/eloquent-carson-svfmmm/plugins/master)
 
 ### IDGems
 
@@ -51,11 +51,11 @@ pas encore installable · [suivre le chantier](https://github.com/droz-lab/plugi
 
 ### Markov
 
-`0.1.0 en chantier` - par YoY
+`0.1.0 essai` - par YoY
 
 Générateur MIDI markovien sur 8 pistes
 
-pas encore installable · [suivre le chantier](https://github.com/droz-lab/plugins/tree/yoy/markov-generateur/plugins/markov)
+[Installer l'essai (Windows)](https://github.com/droz-lab/plugins/releases/download/dernier/Markov-Setup.exe) · [suivre le chantier](https://github.com/droz-lab/plugins/tree/yoy/markov-generateur/plugins/markov)
 
 ## Participer
 
