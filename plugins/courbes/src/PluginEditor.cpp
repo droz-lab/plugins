@@ -305,7 +305,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     style.setColour (juce::TooltipWindow::textColourId, palette::texte);
     setLookAndFeel (&style);
 
-    titre.setText (T ("Droz Courbes"), juce::dontSendNotification);
+    titre.setText (T ("Courbes"), juce::dontSendNotification);
     titre.setFont (juce::FontOptions (20.0f, juce::Font::bold));
     titre.setColour (juce::Label::textColourId, palette::accent);
     addAndMakeVisible (titre);

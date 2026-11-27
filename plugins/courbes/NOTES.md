@@ -1,4 +1,4 @@
-# Droz Courbes
+# Courbes
 
 Responsable : Zomban (Bitwig, doit aussi marcher dans Ableton ; Windows seulement sauf demande).
 
@@ -34,11 +34,14 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
 
 - Bitwig : sur une piste instrument, ou en Note FX avant l'instrument vise. Le CC sort dans la chaine ;
   un modulateur "MIDI" (CC 20) sur l'appareil suivant le mappe sur n'importe quel parametre.
-- Ableton : sur une piste MIDI. Une autre piste choisit "MIDI From : <piste> / Droz Courbes" ;
+- Ableton : sur une piste MIDI. Une autre piste choisit "MIDI From : <piste> / Courbes" ;
   le plugin vise doit savoir apprendre un CC (MIDI learn). Mapper un parametre Ableton natif
   demande Max for Live.
 
 ## Decisions et lecons
+
+- 2026-11-27 : nom "Courbes" (plus "Droz Courbes"). Fichiers a telecharger au nom du plugin
+  (Courbes-Windows), pas de zip dans un zip, Windows seulement sauf demande de Zomban.
 
 - Type "instrument" (pas effet) : Ableton ne laisse router la sortie MIDI que des instruments.
 - Sortie MIDI : JUCE la decide a la compilation (JucePlugin_ProducesMidiOutput). Ajout commun

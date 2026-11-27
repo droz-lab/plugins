@@ -1,4 +1,4 @@
-// Moteur de courbes de Droz Courbes : une courbe periodique faite de points relies par des segments,
+// Moteur de courbes de Courbes : une courbe periodique faite de points relies par des segments,
 // et les familles de formes qui la generent. C++ pur, sans JUCE, sans allocation : utilisable
 // tel quel dans le fil audio.
 #pragma once

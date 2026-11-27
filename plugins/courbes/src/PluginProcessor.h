@@ -7,7 +7,7 @@
 
 #include <atomic>
 
-/** Droz Courbes : joue une courbe en boucle, calee sur le tempo, et l'envoie en MIDI CC.
+/** Courbes : joue une courbe en boucle, calee sur le tempo, et l'envoie en MIDI CC.
     Instrument (pour qu'Ableton et Bitwig laissent router sa sortie MIDI) ; il ne fait du son
     que si "Ecoute" est monte : un son test module par la courbe, pour entendre la forme. */
 class PluginProcessor final : public juce::AudioProcessor

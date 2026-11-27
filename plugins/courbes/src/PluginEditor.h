@@ -4,7 +4,7 @@
 
 #include <functional>
 
-/** Couleurs de Droz Courbes. */
+/** Couleurs de Courbes. */
 namespace palette
 {
 const juce::Colour fond { 0xff111317 };
