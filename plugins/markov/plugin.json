@@ -1,0 +1,9 @@
+{
+  "nom": "Markov",
+  "cible": "Markov",
+  "code": "Mar1",
+  "type": "instrument",
+  "version": "0.1.0",
+  "auteur": "yoy",
+  "description": "Générateur MIDI markovien sur 8 pistes"
+}
