@@ -31,6 +31,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 ## Distribution
 
+- 2026-11-27, Fx, verifie. Depuis Claude Code sur le web, pousser une etiquette git est refuse (HTTP 403), seules les branches passent. Publier par le bouton : Actions > Sortie > Run workflow.
+
 - 2026-11-27, Fx, verifie. Un tiret long ou un caractere special dans un nom de fichier zippe casse la decompression sur certains systemes (`mapname: conversion failed` sous Linux). Noms de fichiers en ASCII, tirets simples.
 - 2026-11-27, Fx, verifie. Les Artifacts d'Actions demandent un compte GitHub et expirent (30 jours ici). Pour donner un plugin a quelqu'un : une Release (etiquette `<dossier>-v<version>`).
 - 2026-11-27, Fx, a retenir. Deux plugins avec le meme couple (code fabricant, code) sont confondus par le DAW. `tools/droz.py verifier` bloque les doublons. Un plugin deja sorti ailleurs garde ses codes d'origine via `fabricant` et `code_fabricant` dans son `plugin.json`.
