@@ -1,0 +1,45 @@
+name: Centre
+
+# Refait la page du centre Droz Lab : plugins a installer, chantiers en cours, par ou commencer.
+# Elle vit sur la page fixe "dernier" (Releases), a cote des installeurs : une seule adresse pour tout.
+# Contenu : `python tools/droz.py centre`. Rien n'est ecrit dans le depot, donc aucune PR a faire.
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [Compilation, Sortie]
+    types: [completed]
+  schedule:
+    - cron: "17 * * * *" # toutes les heures, pour suivre les branches et les PR
+  workflow_dispatch:
+
+permissions:
+  contents: write # seulement pour modifier le texte de la page "dernier"
+  pull-requests: read
+  checks: read
+  actions: read
+
+concurrency:
+  group: centre
+  cancel-in-progress: true
+
+jobs:
+  centre:
+    name: Page du centre
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Ecrire et poser la page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/droz.py centre > centre.md
+          cat centre.md >> "$GITHUB_STEP_SUMMARY"
+          if ! gh release view dernier > /dev/null 2>&1; then
+            gh release create dernier --title "Droz Lab : le centre" --latest=false --notes-file centre.md
+          else
+            gh release edit dernier --title "Droz Lab : le centre" --notes-file centre.md
+          fi

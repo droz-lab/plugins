@@ -20,6 +20,15 @@ Etat de l'art releve le 27/11/2026. Chaque choix technique dit ce qu'on a retenu
 
 Le son passe avant l'interface : un plugin qui sonne avec trois potards bruts vaut mieux qu'une belle fenetre sur un traitement pas fini. Une fonction a la fois, finie.
 
+### Avant l'etape 1 : le bilan
+
+`python tools/droz.py bilan` ouvre chaque session. Il ne modifie rien. Il dit a l'assistant :
+
+- ce qu'il doit regler seul : branche en retard sur `main` (donc regles anciennes), fiche absente ou incomplete ;
+- ce qu'il doit demander a la personne, en un seul message : son contexte la premiere fois (`carnet/<prenom>/PROFIL.md`), un acces qui manque pour pousser ou lire les journaux, des boucles pour les rendus.
+
+Regle generale : quand il manque quelque chose a l'assistant pour bien faire, il le dit et le demande. Il ne devine pas en silence.
+
 ## 2. La fiche
 
 La fiche tient en une page. Elle s'ecrit avant le code et fait foi : quand le plugin change, la fiche change dans la meme PR. Modele : `plugins/_modele/FICHE.md`.
@@ -49,9 +58,12 @@ Exemple. Demande : "fais-moi un gate rythmique qui respire". L'assistant suppose
 
 ### Ce que le Verdict refuse
 
-- pas de `FICHE.md`, une section absente, ou une ligne `A REMPLIR` encore la ;
+- une fiche incomplete : section absente, ou ligne `A REMPLIR` encore la ;
 - un tableau de reglages vide, ou plus de 6 reglages en facade ;
-- un reglage de la fiche qui n'existe pas dans le plugin compile.
+- un reglage de la fiche qui n'existe pas dans le plugin compile ;
+- a partir de la 1.0.0 : pas de fiche du tout.
+
+Un nouveau plugin nait avec sa fiche a remplir (`tools/droz.py nouveau` la cree) : il est donc tenu de la remplir. Un plugin d'avant la methode n'en a pas : en 0.x c'est une alerte, rien ne bloque, et le bilan de session demande a l'assistant de l'ecrire.
 
 ## 3. Deux paliers
 
@@ -60,8 +72,9 @@ Le numero de version dit ou en est le plugin. On ne monte pas en 1.0.0 par habit
 | | Chantier (0.x) | Pro (1.0.0 et plus) |
 |---|---|---|
 | Esprit | on cherche, on s'amuse, on publie vite pour essayer a trois | on le pose sur un master ou dans un live sans y penser |
-| Fiche | obligatoire | obligatoire |
-| Tests communs | les echecs bloquent, les alertes s'affichent | echecs et alertes bloquent |
+| Principe | la methode guide : ses controles alertent | la methode bloque |
+| Fiche | remplie si elle existe ; absente = alerte | obligatoire |
+| Tests communs | les tests d'origine bloquent ; temps reel, transport et reprise alertent | tout bloque |
 | pluginval | niveau 5 bloquant, niveau 10 lance pour information | niveau 10 bloquant |
 | Liste a la main (3.2) | non | oui, cochee dans la PR qui monte en 1.0.0 |
 
@@ -70,7 +83,7 @@ Le numero de version dit ou en est le plugin. On ne monte pas en 1.0.0 par habit
 | Controle | Ce qu'il attrape | Depuis |
 |---|---|---|
 | registre | deux plugins avec le meme code : le DAW les confond | depart |
-| fiche | plugin sans fiche, fiche incomplete, reglage absent du plugin | cette methode |
+| fiche | fiche incomplete, reglage absent du plugin, plugin sans fiche (alerte en chantier) | cette methode |
 | robustesse | NaN ou explosion a 44,1, 48 et 96 kHz, blocs de 16 a 1024, blocs irreguliers, reglages au hasard | depart |
 | silence | bruit de fond ou oscillation apres la fin du son | depart |
 | etat | reglages perdus au rechargement du projet, plantage sur un etat corrompu | depart |
@@ -78,8 +91,8 @@ Le numero de version dit ou en est le plugin. On ne monte pas en 1.0.0 par habit
 | clics | parametre continu non lisse | depart |
 | interface | plantage a la reouverture, taille de fenetre perdue | depart |
 | temps reel | allocation ou liberation memoire dans `processBlock`, tous reglages en mouvement (alerte en chantier) | cette methode |
-| transport | plantage ou NaN quand l'hote ne donne aucune position, est a l'arret, boucle, ou change de tempo (20 a 999) | cette methode |
-| reprise | meme instance repreparee a 96 et 192 kHz puis a 44,1 | cette methode |
+| transport | NaN ou explosion quand l'hote ne donne aucune position, est a l'arret, boucle, ou change de tempo (20 a 999) (alerte en chantier) | cette methode |
+| reprise | meme instance repreparee a 96 et 192 kHz puis a 44,1 (alerte en chantier) | cette methode |
 | charge | plus de 25 % d'un coeur (alerte) | depart |
 | pluginval | ce qu'un vrai hote fait subir au plugin : automation, etats, bus, fils d'execution | depart |
 | installeur Windows | installeur qui ne pose pas le plugin au bon endroit | depart |

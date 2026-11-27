@@ -2,6 +2,8 @@
 
 Plugins audio VST3 du collectif [Droz](https://drozrecordz.com).
 
+**[Ouvrir le centre Droz Lab](https://github.com/droz-lab/plugins/releases/tag/dernier)** : installer les plugins, suivre les chantiers, savoir par ou commencer. La page se met a jour toute seule.
+
 <!-- vitrine:debut -->
 | Plugin | Quoi | Par | Windows |
 |---|---|---|---|
@@ -26,4 +28,4 @@ Zips de chaque version : [Releases](https://github.com/droz-lab/plugins/releases
 
 </details>
 
-[Participer](docs/ATELIER.md) · [Methode](docs/METHODE.md) · [Habillage](docs/HABILLAGE.md) · [Issues](https://github.com/droz-lab/plugins/issues)
+[Commencer ici](docs/ATELIER.md#commencer-ici--un-seul-message-a-coller) · [Participer](docs/ATELIER.md) · [Methode](docs/METHODE.md) · [Habillage](docs/HABILLAGE.md) · [Issues](https://github.com/droz-lab/plugins/issues)
