@@ -173,7 +173,7 @@ jobs:
           $plugins = Get-ChildItem build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.Parent.Name -eq "VST3" }
           if (-not $plugins) { Write-Host "aucun .vst3 produit"; exit 1 }
           foreach ($vst in $plugins) {
-            $nom = $vst.BaseName
+            $nom = $vst.Name -replace "\.vst3$", ""   # BaseName garde ".vst3" sur un dossier
             $version = "0.0.0"
             $info = Join-Path $vst.FullName "Contents\Resources\moduleinfo.json"
             if ((Test-Path $info) -and ((Get-Content $info -Raw) -match '"Version":\s*"([0-9.]+)"')) { $version = $Matches[1] }
@@ -191,7 +191,7 @@ jobs:
             $journal = Join-Path $env:RUNNER_TEMP ($setup.BaseName + ".log")
             $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$journal`"" -Wait -PassThru
             Write-Host "$($setup.Name) : code $($p.ExitCode)"
-            if (Test-Path $journal) { Get-Content $journal | Select-Object -Last 40 }
+            if (Test-Path $journal) { Get-Content $journal | Select-Object -Last 12 }
             if ($p.ExitCode -ne 0) { exit 1 }
           }
           Get-ChildItem (Join-Path $env:CommonProgramFiles "VST3") -Recurse -Depth 3 -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
