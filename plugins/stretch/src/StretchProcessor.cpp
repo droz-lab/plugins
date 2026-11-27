@@ -137,6 +137,8 @@ void StretchProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     auto state = apvts.copyState();
     state.setProperty ("uiScale", editorScale.load(), nullptr);
+    state.setProperty ("uiW", editorW.load(), nullptr);
+    state.setProperty ("uiH", editorH.load(), nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary (*xml, dest);
 }
 
@@ -148,6 +150,8 @@ void StretchProcessor::setStateInformation (const void* data, int size)
         if (t.isValid() && t.hasType (apvts.state.getType()))
         {
             if (t.hasProperty ("uiScale")) editorScale = (float) t.getProperty ("uiScale");
+            editorW = (int) t.getProperty ("uiW", 0);
+            editorH = (int) t.getProperty ("uiH", 0);
             apvts.replaceState (t);
         }
     }

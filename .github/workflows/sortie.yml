@@ -1,87 +1,189 @@
 name: Sortie
 
-# Publier une version durable d'un plugin, au choix :
-#   - onglet Actions > Sortie > Run workflow, en donnant le dossier du plugin (le plus simple) ;
-#   - pousser une etiquette <dossier>-v<version>, ex. spiralift-v0.2.0.
-# La version est celle de plugins/<dossier>/plugin.json. Les zips arrivent dans l'onglet Releases.
+# Publier un plugin. Trois facons, meme resultat :
+#   - fusionner dans main une PR qui monte "version" dans plugins/<dossier>/plugin.json (le cas normal :
+#     toute version presente dans main et pas encore publiee part toute seule) ;
+#   - onglet Actions > Sortie > Run workflow, en donnant le dossier du plugin ;
+#   - pousser une etiquette <dossier>-v<version>.
+# Resultat : une Release <dossier>-v<version> (installeur Windows, zips Mac, Linux, Windows)
+# et l'installeur Windows sur la page fixe "dernier", celle que pointe le README.
+# Le Droz Software Center (apps/centre) se publie de la meme facon : monter "version" dans apps/centre/app.json
+# et fusionner. Release centre-v<version>, et Droz-Software-Center-Setup.exe sur la page "dernier".
+# Menage : une seule version publiee par plugin, celle de main. Les versions depassees et celles
+# d'un plugin retire ou renomme sont supprimees (Release et etiquette) a chaque passage.
 
 on:
   push:
+    branches: [main]
+    paths: ["plugins/*/plugin.json", "apps/centre/app.json", ".github/workflows/sortie.yml"]
     tags: ["*-v[0-9]*"]
   workflow_dispatch:
     inputs:
       dossier:
-        description: "Dossier du plugin a publier (ex. premier-jet)"
+        description: "Dossier du plugin a publier (ex. courbes), ou centre pour le Droz Software Center"
         required: true
 
 permissions:
   contents: read
 
+concurrency:
+  group: sortie
+  cancel-in-progress: false
+
 jobs:
   lire:
-    name: Lecture de l'etiquette
+    name: Versions a publier
     runs-on: ubuntu-latest
     outputs:
-      dossier: ${{ steps.tag.outputs.dossier }}
-      tag: ${{ steps.tag.outputs.tag }}
+      dossiers: ${{ steps.choix.outputs.dossiers }}
+      centre: ${{ steps.choix.outputs.centre }}
     steps:
       - uses: actions/checkout@v4
-      - id: tag
+      - id: choix
         env:
           EVENEMENT: ${{ github.event_name }}
+          TYPE_REF: ${{ github.ref_type }}
           REF: ${{ github.ref_name }}
           DEMANDE: ${{ inputs.dossier }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$EVENEMENT" = "workflow_dispatch" ]; then
-            dossier="$DEMANDE"
-            if [ ! -f "plugins/$dossier/plugin.json" ]; then
-              echo "Pas de plugin dans plugins/$dossier"
+          version_de() { python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$1"; }
+          dossiers=""
+          centre=non
+          version_centre=$(python3 -c "import json; print(json.load(open('apps/centre/app.json'))['version'])" 2> /dev/null || true)
+          if [ "$EVENEMENT" = "workflow_dispatch" ] && [ "$DEMANDE" = "centre" ]; then
+            if gh release view "centre-v$version_centre" > /dev/null 2>&1; then
+              echo "La version centre-v$version_centre existe deja : monter 'version' dans apps/centre/app.json avant de publier."
               exit 1
             fi
-            version=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
-            tag="$dossier-v$version"
+            centre=oui
+          elif [ "$EVENEMENT" = "workflow_dispatch" ]; then
+            if [ ! -f "plugins/$DEMANDE/plugin.json" ]; then
+              echo "Pas de plugin dans plugins/$DEMANDE"
+              exit 1
+            fi
+            tag="$DEMANDE-v$(version_de "$DEMANDE")"
             if gh release view "$tag" > /dev/null 2>&1; then
-              echo "La version $tag existe deja : monter 'version' dans plugins/$dossier/plugin.json avant de publier."
+              echo "La version $tag existe deja : monter 'version' dans plugins/$DEMANDE/plugin.json avant de publier."
               exit 1
             fi
+            dossiers="$DEMANDE"
+          elif [ "$TYPE_REF" = "tag" ] && [ "${REF%-v*}" = "centre" ]; then
+            if [ "${REF##*-v}" != "$version_centre" ]; then
+              echo "L'etiquette $REF ne correspond pas a la version de apps/centre/app.json : aligner les deux."
+              exit 1
+            fi
+            gh release view "$REF" > /dev/null 2>&1 || centre=oui
+          elif [ "$TYPE_REF" = "tag" ]; then
+            dossier="${REF%-v*}"
+            if [ "${REF##*-v}" != "$(version_de "$dossier")" ]; then
+              echo "L'etiquette $REF ne correspond pas a la version de plugins/$dossier/plugin.json : aligner les deux."
+              exit 1
+            fi
+            gh release view "$REF" > /dev/null 2>&1 || dossiers="$dossier"
           else
-            tag="$REF"
-            dossier="${tag%-v*}"
-            version="${tag##*-v}"
-            attendu=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
-            if [ "$version" != "$attendu" ]; then
-              echo "L'etiquette dit $version, plugin.json dit $attendu : aligner les deux."
-              exit 1
-            fi
+            # Fusion dans main : tout plugin dont la version n'a pas encore de Release.
+            for meta in plugins/*/plugin.json; do
+              dossier=$(basename "$(dirname "$meta")")
+              case "$dossier" in _*) continue ;; esac
+              gh release view "$dossier-v$(version_de "$dossier")" > /dev/null 2>&1 || dossiers="${dossiers:+$dossiers,}$dossier"
+            done
+            # Et le Droz Software Center, si sa version n'a pas encore de Release.
+            if [ -n "$version_centre" ] && ! gh release view "centre-v$version_centre" > /dev/null 2>&1; then centre=oui; fi
           fi
-          echo "dossier=$dossier" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "a publier : ${dossiers:-aucun plugin}, Droz Software Center : $centre"
+          echo "dossiers=$dossiers" >> "$GITHUB_OUTPUT"
+          echo "centre=$centre" >> "$GITHUB_OUTPUT"
 
   compiler:
     needs: lire
+    if: needs.lire.outputs.dossiers != '' || needs.lire.outputs.centre == 'oui'
     uses: ./.github/workflows/compilation.yml
     with:
-      plugins: ${{ needs.lire.outputs.dossier }}
+      # Le centre seul : on compile quand meme le modele, pour ne pas recompiler tous les plugins.
+      plugins: ${{ needs.lire.outputs.dossiers || '_modele' }}
+      mac: ${{ needs.lire.outputs.dossiers != '' }}
+      centre: ${{ needs.lire.outputs.centre == 'oui' }}
 
   publier:
     name: Publication
     needs: [lire, compiler]
     runs-on: ubuntu-latest
     permissions:
-      contents: write # seulement pour creer la Release
+      contents: write # seulement pour creer les Releases
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: recu
-      - name: Release GitHub
+      - name: Releases GitHub
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.lire.outputs.tag }}
-          DOSSIER: ${{ needs.lire.outputs.dossier }}
+          DOSSIERS: ${{ needs.lire.outputs.dossiers }}
+          CENTRE: ${{ needs.lire.outputs.centre }}
         run: |
-          notes="plugins/$DOSSIER/NOTES.md"
-          [ -f "$notes" ] || notes=README.md
-          # Cree aussi l'etiquette si elle n'existe pas encore (publication par le bouton).
-          gh release create "$TAG" recu/plugins-*/*.zip recu/apercu/*.png --title "$TAG" --notes-file "$notes" --target "$GITHUB_SHA"
+          page_dernier() {
+            gh release view dernier > /dev/null 2>&1 || gh release create dernier --title "Droz Lab : l'atelier" --latest=false --target "$GITHUB_SHA" \
+              --notes "Le Droz Software Center et un installeur Windows par plugin, toujours la derniere version."
+          }
+          champ() { python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))[sys.argv[2]])" "$1" "$2"; }
+          for dossier in ${DOSSIERS//,/ }; do
+            nom=$(champ "$dossier" nom)
+            version=$(champ "$dossier" version)
+            fichier="${nom// /-}"
+            tag="$dossier-v$version"
+            notes="plugins/$dossier/NOTES.md"
+            [ -f "$notes" ] || notes=README.md
+            capture="recu/apercu/$dossier.png"
+            [ -f "$capture" ] || capture=""
+            # Cree aussi l'etiquette si elle n'existe pas encore.
+            gh release create "$tag" recu/plugins-*/"$fichier"-* $capture --title "$nom $version" --notes-file "$notes" --target "$GITHUB_SHA" --latest=false
+
+            # Page fixe "dernier" : un seul fichier par plugin, l'installeur Windows de sa derniere version.
+            page_dernier
+            gh release upload dernier recu/plugins-*/"$fichier"-Setup.exe --clobber
+          done
+
+          # Le Droz Software Center : sa Release, et son installeur sur la page "dernier".
+          if [ "$CENTRE" = "oui" ]; then
+            version=$(python3 -c "import json; print(json.load(open('apps/centre/app.json'))['version'])")
+            gh release create "centre-v$version" recu/centre-Windows/Droz-Software-Center-Setup.exe recu/apercu-centre/apercu-centre/*.png \
+              --title "Droz Software Center $version" --notes-file apps/centre/NOTES.md --target "$GITHUB_SHA" --latest=false
+            page_dernier
+            gh release upload dernier recu/centre-Windows/Droz-Software-Center-Setup.exe --clobber
+          fi
+
+          # Menage : on retire de la page tout ce qui n'y a pas sa place (python tools/droz.py attendus) :
+          # installeurs des plugins de main, essais des chantiers en cours, Droz Software Center, catalogue.
+          gh release download dernier --pattern essais.json --output essais.json 2> /dev/null || echo '{}' > essais.json
+          attendus=$(python3 tools/droz.py attendus --essais essais.json | tr '\n' ' ')
+          for fichier in $(gh release view dernier --json assets --jq '.assets[].name'); do
+            case " $attendus " in
+              *" $fichier "*) ;;
+              *) echo "retire de la page dernier : $fichier"; gh release delete-asset dernier "$fichier" --yes ;;
+            esac
+          done
+
+  menage:
+    name: Menage des anciennes versions
+    # Tourne meme s'il n'y avait rien a publier, jamais si une publication a echoue.
+    needs: [lire, publier]
+    if: always() && needs.lire.result == 'success' && (needs.publier.result == 'success' || needs.publier.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # supprimer des Releases et leurs etiquettes
+    steps:
+      - uses: actions/checkout@v4
+      - name: Une seule version par plugin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name' > publiees.txt
+          python3 tools/droz.py depassees publiees.txt > depassees.txt
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            echo "supprime : $tag"
+            gh release delete "$tag" --cleanup-tag --yes
+            echo "Version retiree : $tag" >> "$GITHUB_STEP_SUMMARY"
+          done < depassees.txt
+          [ -s depassees.txt ] || echo "rien a retirer"

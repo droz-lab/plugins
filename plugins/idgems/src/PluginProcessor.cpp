@@ -195,6 +195,7 @@ void IDGemsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         rack.reset();
         fbBuf.clear();
         fbHp.reset();
+        fbAmtSm = 0.0f;
         dryDelay.reset();
         output.reset();
         panicMute = (int) (sr * 0.05);
@@ -286,14 +287,16 @@ void IDGemsProcessor::processChunk (float* L, float* R, const float* scL, const 
 
     // ---- boucle de feedback globale (sortie -> entrée)
     const float fbAmt = bank[idxFbAmount].get();
-    if (fbAmt > 0.0001f)
+    if (fbAmt > 0.0001f || fbAmtSm > 0.0001f)
     {
+        const float fbK = 1.0f - (float) std::exp (-1.0 / (0.020 * sr));
         const double d = juce::jlimit (1.0, (double) fbBuf.size - 4.0, bank[idxFbTime].get() * 0.001 * sr);
         fbHp.set (sr, 60.0f, 0.707f);
         for (int i = 0; i < n; ++i)
         {
-            L[i] += dsp::fastTanh (fbHp.highpass (0, fbBuf.delay (0, d))) * fbAmt;
-            R[i] += dsp::fastTanh (fbHp.highpass (1, fbBuf.delay (1, d))) * fbAmt;
+            fbAmtSm += fbK * (fbAmt - fbAmtSm);
+            L[i] += dsp::fastTanh (fbHp.highpass (0, fbBuf.delay (0, d))) * fbAmtSm;
+            R[i] += dsp::fastTanh (fbHp.highpass (1, fbBuf.delay (1, d))) * fbAmtSm;
         }
         fbHp.sanitize();
     }

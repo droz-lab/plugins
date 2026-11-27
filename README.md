@@ -1,83 +1,75 @@
-# droz-lab / plugins
+<!-- Page ecrite par `python tools/droz.py accueil` et rangee toute seule (centre.yml). Ne pas modifier a la main. -->
+# DROZ LAB
 
-Atelier commun du collectif Droz : nos plugins audio (VST3, Windows et Mac), compiles et verifies automatiquement, avec les memes regles pour tous nos Claude.
+Plugins audio VST3 du collectif [Droz](https://drozrecordz.com).
 
-## Demarrer un plugin
+## Droz Software Center
 
-1. Ouvre Claude Code sur ce depot.
-2. Colle ceci en remplissant les `<...>` :
+**[Telecharger le Droz Software Center](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Software-Center-Setup.exe)** (Windows)
 
-```
-Lis CLAUDE.md puis docs/PIEGES.md.
-Je veux creer un plugin : <nom>. C'est un <effet | instrument>.
-Le son voulu : <deux ou trois phrases, des references si tu en as>.
-Je suis <prenom>, niveau en code : <aucun | un peu | a l'aise>. DAW : <Ableton | Bitwig>, sur <Windows | Mac>.
-Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
-```
+Une seule appli pour installer, mettre a jour et desinstaller tous les plugins ci-dessous, chantiers compris, d'un clic. Double-clique sur le fichier telecharge. Windows signale un editeur inconnu : "Informations complementaires" puis "Executer quand meme".
 
-3. Ton Claude cree `plugins/<dossier>/`, pousse une branche et ouvre une PR. GitHub compile pour Windows et Mac.
-4. Recupere le plugin : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Windows` ou `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
+## Plugins
 
-## Premiere contribution (test de l'atelier)
+Aucun plugin publie pour l'instant : les premiers sont en chantier, juste en dessous.
 
-1. Accepte l'invitation a l'organisation, ouvre Claude Code sur ce depot.
-2. Dis a ton Claude : `Lis CLAUDE.md. Je suis <prenom>. Ajoute plugins/premier-jet/equipe/<prenom>.txt avec la ligne "<ton texte>", ouvre une PR et envoie-moi la capture de l'interface.`
-3. Quand le controle Verdict est vert, fusionne ta PR (bouton Merge).
-4. Installe le plugin avec une des commandes ci-dessous et ouvre "Droz Premier Jet" dans ton DAW.
+## En chantier
 
-## Installer un plugin
+Les plugins en cours de fabrication. Chaque mise a jour d'une branche qui passe les controles devient installable "a l'essai", ici et dans le Droz Software Center.
 
-En une commande, derniere version publiee (par defaut `premier-jet`) :
+### Droz Courbes
 
-- Windows, dans PowerShell : `irm https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.ps1 | iex`
-- Mac, dans le Terminal : `curl -fsSL https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.sh | bash`
+`0.4.0 essai` - par Zomban
 
-A la main :
+Generateur de courbes synchronisees au tempo, rangees par familles (rampes, pompes, marches, rebonds...), envoyees en MIDI CC pour moduler n'importe quel parametre.
 
+[Installer l'essai (Windows)](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Courbes-Setup.exe) · [suivre le chantier](https://github.com/droz-lab/plugins/tree/zomban/courbes-famille/plugins/courbes)
 
-- Windows : dezippe, copie le dossier `.vst3` dans `C:\Program Files\Common Files\VST3\`. Ferme le DAW avant de remplacer une version.
-- Mac : copie le `.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`, puis une fois par version dans le Terminal : `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"<Nom>.vst3"` (nos plugins ne sont pas signes par Apple).
-- Bitwig : si un plugin fait communiquer ses instances entre elles, son hebergement ne doit pas etre sur "Individually" ("Together" ou "By plug-in" conviennent).
+### Droz Master
 
-## Ce qu'il y a dans le depot
+`0.1.0 essai` - par YoY
 
-| Dossier | Role | Qui modifie |
-|---|---|---|
-| `plugins/<dossier>/` | Un plugin : `plugin.json` (identite), `src/`, `NOTES.md` (memoire du plugin), `boucles/` (WAV courts pour les rendus) | Son responsable |
-| `plugins/_modele/` | Le point de depart, compile a chaque changement commun | PR relue |
-| `libs/droz_dsp/` | Briques DSP partagees, C++ pur, testees | PR relue |
-| `tools/droz.py` | Creer un plugin, verifier le registre | PR relue |
-| `tools/outil/` | Tests communs, rendu WAV et capture d'interface sans DAW | PR relue |
-| `.github/workflows/` | Compilation et sorties | PR relue |
-| `CLAUDE.md`, `docs/PIEGES.md` | Regles et lecons communes a tous nos Claude | PR relue (PIEGES : ajout libre) |
+Chaine de mastering a modules reordonnables : EQ, EQ dynamique, compresseur a styles, multibande, suppresseur de resonances, exciter multibande, clipper, limiteur. Chaque module en stereo, mid-side, gauche-droite ou transitoire-tonal.
 
-## Regles du jeu
+[Installer l'essai (Windows)](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Master-Setup.exe) · [suivre le chantier](https://github.com/droz-lab/plugins/tree/claude/eloquent-carson-svfmmm/plugins/master)
 
-1. Personne ne pousse sur `main`. Une branche par sujet (`<prenom>/<dossier>-<sujet>`), une PR, le controle **Verdict** au vert.
-2. Chacun est chez lui dans son dossier de plugin. Tout ce qui est commun passe par une PR relue par un autre membre.
-3. L'identite d'un plugin sorti ne change plus : `code`, `cible`, identifiants des parametres. Sinon les projets des autres cassent.
-4. Une lecon qui servira aux autres : une ligne dans `docs/PIEGES.md`.
-5. Pas de secret, pas de sample sous droits, pas de binaire lourd dans le depot.
+### IDGems
 
-## Publier une version
+`0.1.0 en chantier` - par YoY
 
-1. Monter `version` dans `plugins/<dossier>/plugin.json`, fusionner la PR.
-2. Onglet **Actions** > **Sortie** > **Run workflow**, taper le dossier du plugin (ex. `premier-jet`).
-3. Les zips Windows, Mac et Linux arrivent dans l'onglet **Releases**, sans limite de duree.
+Machine a glitch randomisable : rack d'effets IDGems
 
-## Compiler chez soi (facultatif)
+pas encore installable · [suivre le chantier](https://github.com/droz-lab/plugins/tree/yoy/idgems-plugins/plugins/idgems)
 
-Il faut CMake 3.25+, un compilateur C++20 (Visual Studio 2022, Xcode ou g++) et Python 3.
+### IDGems Stretch
 
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDROZ_PLUGINS=<dossier> -DDROZ_INSTALLER=ON
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-```
+`0.1.0 en chantier` - par YoY
 
-`DROZ_INSTALLER=ON` copie le plugin dans le dossier VST3 du systeme. L'outil `<Cible>_outil` (dans `build`) sait faire `test`, `params`, `rendu entree.wav sortie.wav --param gain=0.8` et `capture ui.png`.
+Gel de frame sonore a un rate, grain et texture
 
-## A decider ensemble
+pas encore installable · [suivre le chantier](https://github.com/droz-lab/plugins/tree/yoy/idgems-plugins/plugins/stretch)
 
-- Licence. JUCE est gratuit sous AGPLv3 (code ouvert) ou payant sous licence commerciale : a trancher avant de distribuer hors du collectif.
-- Format CLAP pour Bitwig : pas dans JUCE 9.0.6, possible via clap-juce-extensions (a verifier avec JUCE 9).
+### Markov
+
+`0.1.0 essai` - par YoY
+
+Générateur MIDI markovien sur 8 pistes
+
+[Installer l'essai (Windows)](https://github.com/droz-lab/plugins/releases/download/dernier/Markov-Setup.exe) · [suivre le chantier](https://github.com/droz-lab/plugins/tree/yoy/markov-generateur/plugins/markov)
+
+## Participer
+
+- Membres du collectif : [par ou commencer](docs/ATELIER.md). Ou en est chaque chantier : [la page de l'atelier](https://github.com/droz-lab/plugins/releases/tag/dernier).
+- Une idee de plugin : [formulaire](https://github.com/droz-lab/plugins/issues/new?template=idee-de-plugin.yml). Un souci : [formulaire](https://github.com/droz-lab/plugins/issues/new?template=souci.yml).
+- Comment on travaille : [la methode](docs/METHODE.md), [l'habillage](docs/HABILLAGE.md).
+
+<details>
+<summary>Mac, Linux, zips</summary>
+
+Zips de chaque version : [Releases](https://github.com/droz-lab/plugins/releases).
+
+- Mac : `curl -fsSL https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.sh | bash -s -- <dossier>`
+- Mac a la main : copie le `.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`, puis `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"<Nom>.vst3"`.
+- Windows a la main : copie le dossier `.vst3` du zip dans ton dossier VST3.
+
+</details>

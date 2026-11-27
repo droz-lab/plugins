@@ -13,6 +13,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx. Ecarts voulus avec le setup de YoY : JUCE 9.0.6 au lieu de 8.0.9, VST3 seul (pas d'AU ni de Standalone, pour compiler plus vite : `-DDROZ_FORMATS="VST3;AU"` si besoin), pluginval fige en v1.0.4, Linux compile aussi, travail par PR.
 
+- 2026-11-27, Fx, verifie. pluginval 1.0.4 saute le validateur VST3 de Steinberg si on ne lui donne pas son chemin (`--vst3validator`) : le journal dit "Skipping vst3 validator". Un pluginval vert ne veut donc pas dire que ce validateur est passe. Suite dans `docs/METHODE.md`, partie 6.
+
 ## Son
 
 - 2026-11-27, Fx, verifie. Un lissage un pole calcule en `float` se fige a environ 3e-5 de sa cible pres de 1.0 : le pas devient plus petit que la precision. Le gain n'arrive jamais a l'unite. `droz::Smoother` garde son etat en `double`, et son test le verifie.
@@ -31,8 +33,32 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 ## Distribution
 
-- 2026-11-27, Fx, verifie. Depuis Claude Code sur le web, pousser une etiquette git est refuse (HTTP 403), seules les branches passent. Publier par le bouton : Actions > Sortie > Run workflow.
+- 2026-11-27, Fx. Installeur Windows (`tools/installeur.iss`, Inno Setup) : construit et essaye en installation silencieuse a chaque compilation Windows. Non signe, donc avertissement SmartScreen au premier lancement.
+- 2026-11-27, Fx, verifie. PowerShell : `BaseName` d'un dossier garde son extension (`Droz Modele.vst3`). Le premier installeur posait `Droz Modele.vst3.vst3`, l'essai automatique l'a attrape. Retirer l'extension a la main.
+
+- 2026-11-27, Fx, verifie. Depuis une session distante, pousser une etiquette git est refuse (HTTP 403), seules les branches passent. Publier par le bouton : Actions > Sortie > Run workflow.
 
 - 2026-11-27, Fx, verifie. Un tiret long ou un caractere special dans un nom de fichier zippe casse la decompression sur certains systemes (`mapname: conversion failed` sous Linux). Noms de fichiers en ASCII, tirets simples.
 - 2026-11-27, Fx, verifie. Les Artifacts d'Actions demandent un compte GitHub et expirent (30 jours ici). Pour donner un plugin a quelqu'un : une Release (etiquette `<dossier>-v<version>`).
 - 2026-11-27, Fx, a retenir. Deux plugins avec le meme couple (code fabricant, code) sont confondus par le DAW. `tools/droz.py verifier` bloque les doublons. Un plugin deja sorti ailleurs garde ses codes d'origine via `fabricant` et `code_fabricant` dans son `plugin.json`.
+
+- 2026-11-27, Fx, verifie. Depuis une session distante, supprimer une Release ou une etiquette est refuse aussi (HTTP 403). Le menage est fait par `sortie.yml` : une seule version publiee par plugin, les autres sont retirees a chaque passage.
+
+- 2026-11-27, Fx. Le centre (`centre.yml`) ecrit sa page dans le texte de la Release `dernier`, pas dans le depot : `main` est protegee, un robot ne peut pas y pousser, et une page dans le depot demanderait une PR a chaque mise a jour.
+
+- 2026-11-27, Fx. Droz Software Center : un programme lance par `CreateProcess` (donc `juce::ChildProcess`) ne peut pas demander les droits d'administrateur, l'appel echoue. Passer par `ShellExecuteEx` : verbe `open` pour un installeur qui les demande lui-meme, `runas` pour les forcer. Voir `apps/centre/src/Systeme.cpp`.
+- 2026-11-27, Fx. Un plugin charge dans un DAW se lit encore tres bien : ouvrir son fichier en lecture ne dit rien. Pour savoir s'il est verrouille : le gestionnaire de redemarrage de Windows (`RmGetList`, qui donne aussi le nom du programme), ou une ouverture en ecriture qui echoue avec une erreur de partage.
+- 2026-11-27, Fx. Un workflow lance par `pull_request` n'a pas le droit d'ecrire une Release. Pour publier a partir d'un run de PR (les essais) : un second workflow lance par `workflow_run`, qui tourne avec le code de `main`. Il ne doit rien executer de la branche, et ignorer les PR venues d'un autre depot.
+- 2026-11-27, Fx, non verifie. Une appli fenetree lancee depuis PowerShell rend la main tout de suite et n'affiche rien dans la console : `Start-Process -Wait -PassThru` pour attendre et lire son code de sortie, et un fichier journal pour son texte (`--journal`).
+
+- 2026-11-27, Fx. Un workflow ne peut pas pousser dans `main` protegee, et un push fait avec son jeton ne lance aucun autre workflow. Pour qu'un robot range un fichier dans `main` (le README) : il pousse une branche, ouvre une PR, lance lui-meme le Verdict par `workflow_dispatch` (la seule chose que son jeton peut declencher), et fusionne quand c'est vert. Voir `centre.yml`.
+
+- 2026-11-27, Fx. PowerShell : `BaseName` d'un dossier garde l'extension (`Droz Courbes.vst3`), contrairement a un fichier. Pour le nom d'un paquet `.vst3` : `[System.IO.Path]::GetFileNameWithoutExtension($dossier.Name)`.
+
+- 2026-11-27, Fx. Tests communs, deux faux positifs corriges dans `tools/outil/outil.cpp`. "etat" : un `juce::AudioParameterBool` garde la valeur brute qu'on lui envoie (0,37) mais se sauve en 0 ou 1 ; le test envoie maintenant un cran entier aux interrupteurs et aux listes, comme un hote. "clics" : un son a fronts raides (feedback sature, boucle tres courte) depassait le seuil sans qu'on touche au reglage ; le test compare maintenant au meme reglage tenu a chaque extreme.
+
+## Habillage
+
+- 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.
+- 2026-11-27, Fx, verifie. `juce::String::toUpperCase` laisse les lettres accentuees en minuscule sous Linux. Utiliser `droz::ui::upper`.
+- 2026-11-27, Fx. Durees relevees sur les trois premiers runs : Linux 7 a 8 min, Windows 6 a 12 min, Mac 2 a 10 min, en parallele. Retirer le Mac des PR ne raccourcit pas l'attente, ca economise seulement du calcul.

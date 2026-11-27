@@ -12,6 +12,7 @@ namespace idg
       dans le son d'origine, et le premier passage prolonge le son direct sans rupture.
     - Le grain peut bouger PENDANT la boucle (automation) : la fenêtre reste ancrée sur sa fin, sa longueur
       suit le grain lissé (~10 ms) et la position dans la boucle est gardée en proportion (pas de saut).
+      Un grand saut de grain est limité en vitesse (2 échantillons par échantillon) : il glisse, sans clic.
     - Bascule boucle précédente -> son direct : fondu à puissance constante de quelques ms.
     - Sortie : coupe-bas et coupe-haut 24 dB/oct (deux SVF en cascade chacun), résonance commune.
     Pur DSP, sans allocation dans process(). */
@@ -51,6 +52,8 @@ public:
         for (auto& f : hp) f.reset();
         for (auto& f : lp) f.reset();
         hpSm = 20.0f; lpSm = 20000.0f; resoSm = 0.0f;
+        hpMix = lpMix = 0.0f;
+        mixCoef = (float) (1.0 - std::exp (-1.0 / (0.005 * sr)));
         filtCount = 0;
         gSm = -1.0;
     }
@@ -70,7 +73,11 @@ public:
             const float inL = L[i], inR = R[i];
             buf.push (inL, inR);
 
-            gSm = std::exp (std::log (gSm) + gCoef * (logTarget - std::log (gSm)));
+            // La longueur du grain ne bouge pas de plus de 2 echantillons par echantillon : la lecture de la
+            // boucle ne depasse jamais 3 fois la vitesse normale, donc un grand saut de Grain (1 Hz -> 500 Hz)
+            // glisse comme une bande au lieu de claquer. Les petits mouvements gardent le lissage de 10 ms.
+            const double gVoulu = std::exp (std::log (gSm) + gCoef * (logTarget - std::log (gSm)));
+            gSm += juce::jlimit (-2.0, 2.0, gVoulu - gSm);
             const double G = gSm;
             const double beat = beatPos + (double) i / spb;
             const auto step = (int64_t) std::floor (beat / rate);
@@ -132,11 +139,15 @@ public:
                 filtCount = 15;
                 updateFilters (s);
             }
+            // Les filtres tournent toujours (etat a jour) ; leur entree en jeu et leur sortie se font en fondu
+            // (~5 ms). Avant : coupure nette a 20 Hz et 20 kHz, donc un clic en bout de course du reglage.
+            hpMix += mixCoef * ((hpOn ? 1.0f : 0.0f) - hpMix);
+            lpMix += mixCoef * ((lpOn ? 1.0f : 0.0f) - lpMix);
             for (int c = 0; c < 2; ++c)
             {
                 float& v = c == 0 ? l : r;
-                if (hpOn) v = hp[1].highpass (c, hp[0].highpass (c, v));
-                if (lpOn) v = lp[1].lowpass (c, lp[0].lowpass (c, v));
+                v += (hp[1].highpass (c, hp[0].highpass (c, v)) - v) * hpMix;
+                v += (lp[1].lowpass (c, lp[0].lowpass (c, v)) - v) * lpMix;
             }
 
             L[i] = safety (l);
@@ -259,8 +270,9 @@ private:
         hpOn = hpSm > 20.5f;
         lpOn = lpSm < 19500.0f && lpSm < sr * 0.45;
         const float q2 = (float) qFor (resoSm);
-        if (hpOn) { hp[0].set (sr, hpSm, 0.5412f); hp[1].set (sr, hpSm, q2); }
-        if (lpOn) { lp[0].set (sr, lpSm, 0.5412f); lp[1].set (sr, lpSm, q2); }
+        const float lpF = juce::jmin (lpSm, (float) (sr * 0.45));
+        hp[0].set (sr, hpSm, 0.5412f); hp[1].set (sr, hpSm, q2);
+        lp[0].set (sr, lpF, 0.5412f); lp[1].set (sr, lpF, q2);
     }
 
     static float safety (float x)
@@ -280,6 +292,7 @@ private:
     dsp::SVF hp[2], lp[2];
     float hpSm = 20.0f, lpSm = 20000.0f, resoSm = 0.0f;
     bool hpOn = false, lpOn = false;
+    float hpMix = 0.0f, lpMix = 0.0f, mixCoef = 0.004f;
     int filtCount = 0;
 };
 } // namespace idg

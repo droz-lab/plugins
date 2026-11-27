@@ -1,0 +1,125 @@
+name: Centre
+
+# Refait tout ce qui dit ou en est l'atelier, sans que personne n'y touche :
+#   - catalogue.json sur la page fixe "dernier", lu par le Droz Software Center ;
+#   - le texte de la page "dernier" (etat de chaque chantier) ;
+#   - le README, page d'accueil du depot (`python tools/droz.py accueil`).
+#
+# main est protegee : le README y entre par une PR du robot (branche robot/accueil), qui ne contient que ce
+# fichier. Le robot lance le Verdict dessus, et la fusionne des qu'il est vert. Reglage necessaire, une fois :
+# Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [Compilation, Sortie, Essais]
+    types: [completed]
+  schedule:
+    - cron: "17 * * * *" # toutes les heures, pour suivre les branches et les PR
+  workflow_dispatch:
+
+permissions:
+  contents: write       # page "dernier", branche robot/accueil
+  pull-requests: write  # ouvrir et fusionner la PR du README
+  actions: write        # lancer le Verdict sur la branche du robot
+  checks: read
+
+concurrency:
+  group: centre
+  cancel-in-progress: true
+
+jobs:
+  centre:
+    name: Catalogue, page de l'atelier et page d'accueil
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEPOT: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Catalogue et page de l'atelier
+        run: |
+          # Les essais des chantiers (essais.yml) : absents tant qu'aucune branche n'a eu de Verdict vert.
+          gh release download dernier --pattern essais.json --output essais.json 2> /dev/null || echo '{}' > essais.json
+          python3 tools/droz.py centre --essais essais.json > centre.md
+          python3 tools/droz.py catalogue --essais essais.json > catalogue.json
+          python3 -c "import json; c = json.load(open('catalogue.json')); print(len(c['plugins']), 'plugin(s) dans le catalogue')"
+          cat centre.md >> "$GITHUB_STEP_SUMMARY"
+          if ! gh release view dernier > /dev/null 2>&1; then
+            gh release create dernier --title "Droz Lab : l'atelier" --latest=false --notes-file centre.md
+          else
+            gh release edit dernier --title "Droz Lab : l'atelier" --notes-file centre.md
+          fi
+          gh release upload dernier catalogue.json --clobber
+
+      - name: Page d'accueil (README), par une PR du robot
+        run: |
+          dire() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          python3 tools/droz.py accueil --essais essais.json > accueil.md
+          pr=$(gh api "repos/$DEPOT/pulls?state=open&head=${DEPOT%%/*}:robot/accueil" --jq '.[0].number // empty')
+          if cmp -s accueil.md README.md; then
+            dire "Page d'accueil : a jour."
+            # Une PR du robot encore ouverte ne sert plus a rien.
+            if [ -n "$pr" ]; then gh api -X PATCH "repos/$DEPOT/pulls/$pr" -f state=closed > /dev/null; fi
+            git push --quiet origin --delete robot/accueil 2> /dev/null || true
+            exit 0
+          fi
+
+          # La branche du robot porte-t-elle deja exactement cette page, posee sur le main d'aujourd'hui ?
+          base=$(git rev-parse HEAD)
+          pose=""
+          if git fetch --quiet --depth 2 origin robot/accueil 2> /dev/null; then
+            tete=$(git rev-parse FETCH_HEAD)
+            if [ "$(git rev-parse "$tete^" 2> /dev/null)" = "$base" ] && git show "$tete:README.md" | cmp -s - accueil.md; then pose="$tete"; fi
+          fi
+
+          nouvelle=non
+          if [ -z "$pose" ]; then
+            git checkout --quiet -B robot/accueil
+            cp accueil.md README.md
+            git add README.md
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit --quiet -m "accueil: page d'accueil refaite"
+            git push --quiet --force origin robot/accueil
+            nouvelle=oui
+          fi
+          if [ -z "$pr" ]; then
+            pr=$(gh api "repos/$DEPOT/pulls" -f title="accueil: page d'accueil refaite" -f head=robot/accueil -f base=main \
+                 -f body="Page d'accueil refaite par \`python tools/droz.py accueil\`. Un seul fichier : README.md. Fusionnee toute seule quand le Verdict est vert." \
+                 --jq '.number // empty' 2> /dev/null || true)
+            # Refus de GitHub : la reponse d'erreur n'a pas de numero.
+            case "$pr" in ''|*[!0-9]*) pr="" ;; esac
+            if [ -z "$pr" ]; then
+              dire "Page d'accueil : le robot n'a pas le droit d'ouvrir une PR. A cocher une fois : Settings > Actions > General > Allow GitHub Actions to create and approve pull requests."
+              exit 0
+            fi
+          fi
+          if [ "$nouvelle" = "oui" ]; then
+            # Un push du robot ne lance aucun workflow : on demande le Verdict (rien a compiler, une minute).
+            gh api -X POST "repos/$DEPOT/actions/workflows/compilation.yml/dispatches" -f ref=robot/accueil -f "inputs[plugins]=aucun"
+            dire "Page d'accueil : PR du robot mise a jour, Verdict lance."
+            exit 0
+          fi
+
+          verdict=$(gh api "repos/$DEPOT/commits/$pose/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "Verdict")] | .[0] | if . == null then "absent" elif .status != "completed" then "en cours" else .conclusion end')
+          case "$verdict" in
+            success)
+              # Garde-fou : la PR ne doit toucher que le README.
+              fichiers=$(gh api "repos/$DEPOT/pulls/$pr/files" --jq '[.[].filename] | join(" ")')
+              if [ "$fichiers" = "README.md" ]; then
+                gh api -X PUT "repos/$DEPOT/pulls/$pr/merge" -f merge_method=squash -f sha="$pose" > /dev/null
+                git push --quiet origin --delete robot/accueil 2> /dev/null || true
+                dire "Page d'accueil : PR $pr fusionnee."
+              else
+                dire "Page d'accueil : PR du robot inattendue (fichiers : $fichiers). Rien fusionne."
+              fi ;;
+            "en cours") dire "Page d'accueil : Verdict en cours sur la PR du robot." ;;
+            absent)
+              gh api -X POST "repos/$DEPOT/actions/workflows/compilation.yml/dispatches" -f ref=robot/accueil -f "inputs[plugins]=aucun"
+              dire "Page d'accueil : Verdict pas encore lance sur la PR du robot, relance." ;;
+            *) dire "Page d'accueil : Verdict $verdict sur la PR $pr du robot. A regarder : le registre ou les tests de libs/ ne passent pas sur main." ;;
+          esac
