@@ -2,6 +2,10 @@
 
 Pour les membres du collectif. La page publique est le [README](../README.md).
 
+## A chaque session
+
+Tu n'as rien a retenir. Ouvre le depot avec ton assistant et dis-lui ce que tu veux. Il commence par un bilan (`python tools/droz.py bilan`) : il met ta branche a jour, verifie tes fiches, et te demande en une fois ce qui lui manque (ton contexte la premiere fois, un acces, une boucle, une decision). S'il ne le fait pas, dis-lui : "Lis CLAUDE.md et fais le bilan."
+
 ## Demarrer un plugin
 
 1. Ouvre le depot avec ton assistant de code.
@@ -35,7 +39,7 @@ Une phrase suffit aussi ("fais-moi un gate rythmique qui respire") : l'assistant
 | `plugins/_modele/` | Le point de depart, compile a chaque changement commun | PR relue |
 | `libs/droz_dsp/` | Briques DSP partagees, C++ pur, testees | PR relue |
 | `libs/droz_ui/` | Habillage commun des interfaces, regle dans `docs/HABILLAGE.md` | PR relue |
-| `carnet/<prenom>/` | Reflexions et idees de chacun | Chacun chez soi |
+| `carnet/<prenom>/` | Reflexions et idees de chacun, et `PROFIL.md` : ton contexte (niveau en code, DAW, systeme, ecoute, references), pour que l'assistant ne te le redemande pas | Chacun chez soi |
 | `tools/droz.py` | Creer un plugin, verifier le registre | PR relue |
 | `tools/outil/` | Tests communs, rendu WAV et capture d'interface sans DAW | PR relue |
 | `.github/workflows/` | Compilation et sorties | PR relue |

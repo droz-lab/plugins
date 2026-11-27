@@ -4,9 +4,10 @@ Depot commun a plusieurs personnes et plusieurs Claude. Ces regles gardent le de
 
 ## Debut de session
 
-1. `python tools/droz.py liste` : les plugins et leurs responsables.
-2. Lis `docs/METHODE.md`, `docs/PIEGES.md`, `docs/HABILLAGE.md`, puis le `FICHE.md` et le `NOTES.md` du plugin concerne.
-3. Demande a la personne son prenom et son plugin si ce n'est pas clair. Ne touche pas au plugin d'un autre sans qu'il l'ait demande.
+1. `python tools/droz.py bilan` : ce qui est pret, ce qui manque. Regle toi-meme ce qu'il liste sous "A REGLER" (branche en retard sur `main`, fiche absente), dans cet ordre, avant tout autre travail. Si la commande n'existe pas, ta branche est ancienne : `git fetch origin main && git merge origin/main`, puis relis ce fichier.
+2. Lis `docs/METHODE.md`, `docs/PIEGES.md`, `docs/HABILLAGE.md`, `carnet/<prenom>/PROFIL.md`, puis le `FICHE.md` et le `NOTES.md` du plugin concerne.
+3. Ce que le bilan liste sous "A DEMANDER" : pose-le a la personne en un seul message, a choix quand c'est possible, et range les reponses (profil dans `carnet/<prenom>/PROFIL.md`, le reste dans la fiche ou `NOTES.md`) pour ne jamais les redemander.
+4. Il te manque autre chose pour bien faire (une reference d'ecoute, une decision, un acces, un fichier, un outil) : dis-le et demande-le tout de suite. Ne devine pas en silence, ne contourne pas. Ne touche pas au plugin d'un autre sans qu'il l'ait demande.
 
 ## Avant de coder : la fiche
 
@@ -70,7 +71,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 - `plugins/<dossier>/NOTES.md` : memoire du plugin (etat, decisions, ce qui a ete essaye et abandonne). A mettre a jour a chaque session.
 - `docs/METHODE.md` : le chemin d'un plugin, les deux paliers, les choix techniques et leurs sources.
 - `docs/PIEGES.md` : lecons utiles a tous. Ajout libre, une entree courte, datee, avec le prenom.
-- `carnet/<prenom>/` : reflexions et idees de chacun, un fichier par sujet. Chacun n'ecrit que dans son dossier.
+- `carnet/<prenom>/` : reflexions et idees de chacun, un fichier par sujet. Chacun n'ecrit que dans son dossier. `PROFIL.md` y garde le contexte de la personne (niveau en code, DAW, systeme, ecoute, references). Le depot est public : rien de personnel.
 - Ce fichier : regles stables. Il ne grossit pas. Modification par PR `commun:` uniquement.
 
 ## Securite

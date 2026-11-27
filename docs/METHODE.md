@@ -20,6 +20,15 @@ Etat de l'art releve le 27/11/2026. Chaque choix technique dit ce qu'on a retenu
 
 Le son passe avant l'interface : un plugin qui sonne avec trois potards bruts vaut mieux qu'une belle fenetre sur un traitement pas fini. Une fonction a la fois, finie.
 
+### Avant l'etape 1 : le bilan
+
+`python tools/droz.py bilan` ouvre chaque session. Il ne modifie rien. Il dit a l'assistant :
+
+- ce qu'il doit regler seul : branche en retard sur `main` (donc regles anciennes), fiche absente ou incomplete ;
+- ce qu'il doit demander a la personne, en un seul message : son contexte la premiere fois (`carnet/<prenom>/PROFIL.md`), un acces qui manque pour pousser ou lire les journaux, des boucles pour les rendus.
+
+Regle generale : quand il manque quelque chose a l'assistant pour bien faire, il le dit et le demande. Il ne devine pas en silence.
+
 ## 2. La fiche
 
 La fiche tient en une page. Elle s'ecrit avant le code et fait foi : quand le plugin change, la fiche change dans la meme PR. Modele : `plugins/_modele/FICHE.md`.

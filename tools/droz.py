@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Outil du depot droz-lab. Python 3.9+, aucune dependance.
 
+  python tools/droz.py bilan [--prenom fx]   A LANCER EN DEBUT DE SESSION : ce qui est pret, ce qui manque,
+                                           et ce que l'assistant doit demander a la personne
   python tools/droz.py nouveau <dossier> --nom "Mon Plugin" [--type effet|instrument] [--auteur fx]
   python tools/droz.py verifier            registre des plugins (codes uniques, champs) et fiches (FICHE.md)
   python tools/droz.py palier <dossier>    palier du plugin : chantier (0.x) ou pro (1.0.0 et plus)
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -105,7 +108,8 @@ def erreurs_fiches(dossiers=None) -> list[str]:
         if dossier.startswith("_") or (dossiers is not None and dossier not in dossiers):
             continue
         fiche = PLUGINS / dossier / "FICHE.md"
-        aide = "voir docs/METHODE.md, modele : plugins/_modele/FICHE.md"
+        aide = ("mets d'abord ta branche a jour avec `git fetch origin main && git merge origin/main`, "
+                "puis lis docs/METHODE.md et lance `python tools/droz.py bilan` ; modele : plugins/_modele/FICHE.md")
         if not fiche.exists():
             err.append(f"{dossier} : pas de FICHE.md ({aide})")
             continue
@@ -179,6 +183,8 @@ def cmd_verifier(_) -> int:
     fiches = erreurs_fiches()
     for e in fiches:
         print("ERREUR fiche :", e)
+        if os.environ.get("GITHUB_ACTIONS"):  # visible en tete du run et sur la PR
+            print(f"::error title=Fiche de plugin::{e}")
     if not fiches:
         print("fiches : toutes presentes et remplies")
     err += fiches
@@ -333,6 +339,112 @@ def cmd_fiche_params(a) -> int:
     return 0
 
 
+MEMBRES = ("fx", "yoy", "zomban")
+QUESTIONS_PROFIL = (
+    "Prenom (celui de tes branches)",
+    "Niveau en code : aucun, un peu, a l'aise",
+    "DAW et systeme (ex. Ableton Live 12 sur Windows 11, Bitwig sur Mac)",
+    "Dossier VST3 si ce n'est pas celui par defaut",
+    "Comment tu ecoutes (enceintes, casque) et ou tu veux recevoir captures et rendus (telephone, ordinateur)",
+    "Deux ou trois plugins que tu prends comme reference de qualite",
+)
+
+
+def _commande(*args: str, delai: int = 20) -> tuple[int, str]:
+    try:
+        r = subprocess.run(list(args), cwd=RACINE, capture_output=True, text=True, timeout=delai)
+        return r.returncode, (r.stdout + r.stderr).strip()
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return 1, str(e)
+
+
+def cmd_bilan(a) -> int:
+    """Etat de la session : ne modifie rien. L'assistant lit la fin ("A REGLER", "A DEMANDER") et agit."""
+    regler, demander, infos = [], [], []
+
+    # 1. Branche et fraicheur des regles
+    branche = _git("rev-parse", "--abbrev-ref", "HEAD").strip() or "?"
+    infos.append(f"branche : {branche}")
+    _commande("git", "fetch", "--quiet", "origin", "main")
+    retard = _git("rev-list", "--count", "HEAD..origin/main").strip()
+    if retard.isdigit() and int(retard) > 0:
+        regler.append(f"ta branche a {retard} commit(s) de retard sur main : les regles que tu viens de lire sont peut-etre anciennes. "
+                      "Lance `git merge origin/main` (ou repars de main), puis relis CLAUDE.md et docs/METHODE.md")
+    elif not retard.isdigit():
+        regler.append("impossible de comparer a origin/main (pas de reseau ou pas de depot distant) : verifie que tu travailles bien sur un clone de droz-lab/plugins")
+    if branche in ("main", "HEAD"):
+        regler.append("tu es sur main : cree une branche `<prenom>/<dossier>-<sujet>` avant toute modification")
+
+    # 2. Qui est la personne
+    prenom = (a.prenom or "").lower()
+    if not prenom and "/" in branche and branche.split("/")[0] in MEMBRES:
+        prenom = branche.split("/")[0]
+    if not prenom:
+        demander.append("Ton prenom (fx, yoy ou zomban) : il nomme tes branches et ton dossier de carnet")
+    else:
+        infos.append(f"personne : {prenom}")
+        profil = RACINE / "carnet" / prenom / "PROFIL.md"
+        if profil.exists():
+            infos.append(f"profil : carnet/{prenom}/PROFIL.md (lis-le, ne repose pas ces questions)")
+        else:
+            demander.append(f"De quoi ecrire carnet/{prenom}/PROFIL.md (une fois pour toutes, le depot est public : rien de personnel) : "
+                            + " ; ".join(QUESTIONS_PROFIL[1:]))
+
+    # 3. Plugins de la personne et plugins touches par la branche
+    tous = metas()
+    touches = set()
+    for f in _git("diff", "--name-only", "origin/main...HEAD").split():
+        if f.startswith("plugins/") and f.count("/") >= 2:
+            touches.add(f.split("/")[1])
+    concernes = sorted(d for d, m in tous.items() if not d.startswith("_") and (d in touches or str(m.get("auteur", "")).lower() == prenom))
+    for d in concernes:
+        infos.append(f"plugin : {d} ({tous[d].get('nom')}, version {tous[d].get('version')}, palier {palier(tous[d])})")
+    for e in erreurs_fiches(concernes) if concernes else []:
+        regler.append("fiche, " + e.split(" (mets d'abord")[0] + " : ecris-la a partir de ce que le plugin fait deja, note tes suppositions `SUPPOSE : ...` et fais-les valider")
+    for d in concernes:
+        if not (PLUGINS / d / "NOTES.md").exists():
+            regler.append(f"{d} : pas de NOTES.md (memoire du plugin)")
+        if not list((PLUGINS / d / "boucles").glob("*.wav")):
+            demander.append(f"Une ou deux boucles courtes pour {d} (WAV, moins de 10 s, faites par toi, sans droits) : sans elles, pas de rendu a ecouter. Sinon je fabrique un signal de test")
+    if not concernes:
+        infos.append("aucun plugin a ton nom ni touche par cette branche : pour en creer un, `python tools/droz.py nouveau ...` puis la fiche")
+
+    # 4. Acces : pousser, ouvrir une PR, lire les journaux
+    code, sortie = _commande("git", "push", "--dry-run", "origin", "HEAD", delai=30)
+    if code != 0:
+        demander.append("Le droit de pousser sur droz-lab/plugins : je n'y arrive pas d'ici (" + (sortie.splitlines() or ["erreur"])[-1][:120] + "). "
+                        "Verifie que tu as accepte l'invitation a l'organisation droz-lab et que ton assistant est relie a GitHub avec ce depot")
+    else:
+        infos.append("acces : je peux pousser une branche")
+    if shutil.which("gh"):
+        code, _ = _commande("gh", "api", "repos/droz-lab/plugins/pulls?per_page=1")
+        if code != 0:
+            demander.append("L'acces a GitHub pour ouvrir une PR et lire les journaux du Verdict : `gh` est installe mais pas connecte (`gh auth login`, a faire toi-meme, ne colle aucun jeton ici)")
+        else:
+            infos.append("acces : je peux ouvrir une PR et lire les journaux Actions")
+    else:
+        infos.append("pas de `gh` ici : si tu n'as pas d'autre moyen d'ouvrir une PR et de lire les journaux du Verdict, demande a la personne de te relier a GitHub")
+
+    # 5. Compiler ici (facultatif, GitHub compile de toute facon)
+    if shutil.which("cmake") and (shutil.which("g++") or shutil.which("clang++") or shutil.which("cl")):
+        infos.append("compilation locale possible (cmake et compilateur presents) : plus rapide que d'attendre GitHub")
+    else:
+        infos.append("pas de compilation locale ici : GitHub compile a chaque PR (10 minutes), prevois-le")
+
+    print("BILAN DE SESSION (docs/METHODE.md)\n")
+    for i in infos:
+        print("  -", i)
+    print("\nA REGLER TOI-MEME, avant tout autre travail :")
+    for r in regler or ["rien"]:
+        print("  -", r)
+    print("\nA DEMANDER A LA PERSONNE, en un seul message, a choix quand c'est possible :")
+    for d in demander or ["rien"]:
+        print("  -", d)
+    print("\nS'il te manque autre chose pour bien faire (une reference d'ecoute, une decision, un acces, un fichier) : "
+          "dis-le tout de suite et demande-le, ne devine pas en silence.")
+    return 0
+
+
 def cmd_depassees(a) -> int:
     """Etiquettes <dossier>-v<version> qui ne sont plus la version de main d'un plugin present.
     Tout le reste (page "dernier", etiquette d'une autre forme) n'est jamais propose."""
@@ -376,6 +488,9 @@ def main() -> int:
     m = sub.add_parser("modifies")
     m.add_argument("base")
     m.set_defaults(f=cmd_modifies)
+    bi = sub.add_parser("bilan")
+    bi.add_argument("--prenom", default="")
+    bi.set_defaults(f=cmd_bilan)
     de = sub.add_parser("depassees")
     de.add_argument("fichier")
     de.set_defaults(f=cmd_depassees)
