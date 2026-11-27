@@ -101,6 +101,8 @@ juce::ValueTree IDGemsProcessor::captureState (bool forPreset) const
         ex.setProperty ("midimap", midiMap, nullptr);
         if (presets != nullptr) ex.setProperty ("preset", presets->currentName(), nullptr);
         if (editorScale.load() > 0.0f) ex.setProperty ("uiscale", editorScale.load(), nullptr);
+        ex.setProperty ("ui_w", editorW.load(), nullptr);
+        ex.setProperty ("ui_h", editorH.load(), nullptr);
     }
 
     root.appendChild (ex, nullptr);
@@ -218,6 +220,8 @@ void IDGemsProcessor::restoreState (const juce::ValueTree& root, bool fromPreset
     if (! fromPreset)
     {
         if (ex.hasProperty ("uiscale")) editorScale = juce::jlimit (0.6f, 2.0f, (float) ex.getProperty ("uiscale"));
+        editorW = (int) ex.getProperty ("ui_w", 0);
+        editorH = (int) ex.getProperty ("ui_h", 0);
         for (auto& c : ccToParam) c = -1;
         for (auto& item : juce::StringArray::fromTokens (ex.getProperty ("midimap").toString(), ";", ""))
         {

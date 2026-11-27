@@ -78,6 +78,7 @@ public:
     std::atomic<bool> morphEnabled { false };
     std::atomic<bool> seqMaster { true };   // interrupteur général des séquenceurs
     std::atomic<float> editorScale { 0.0f }; // taille de la fenêtre (0 = jamais ouverte), sauvée avec le projet
+    std::atomic<int> editorW { 0 }, editorH { 0 }; // taille exacte en pixels, sauvée avec le projet (0 = jamais ouverte)
     std::atomic<bool> arrangePlaying { false };
     std::atomic<int> arrangeCurrent { -1 };
 
@@ -169,6 +170,7 @@ private:
     // feedback global
     idg::dsp::RingBuffer fbBuf;
     idg::dsp::SVF fbHp;
+    float fbAmtSm = 0.0f; // quantite de feedback lissee (~20 ms) : pas de clic quand on la bouge
 
     // dry/wet global
     idg::dsp::LatencyDelay dryDelay;
