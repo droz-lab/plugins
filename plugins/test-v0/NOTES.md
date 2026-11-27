@@ -1,4 +1,4 @@
-# Droz Premier Jet
+# Droz Test v0
 
 Responsable : equipe
 
@@ -9,6 +9,7 @@ Plugin de test de l'atelier : un gain, et le nom de chaque membre affiche dans l
 ## Etat
 
 - v0.1.0 : gain du modele + liste de l'equipe dans l'interface. Sert a tester l'atelier a plusieurs.
+- v0.1.2 : renomme "Droz Test v0" (avant : "Droz Premier Jet", dossier `premier-jet`). Meme code, meme identite pour le DAW.
 - v0.1.1 : meme plugin, republie pour creer l'installeur Windows et la page de telechargement "dernier". Pas encore a la charte Droz (`docs/HABILLAGE.md`) : a faire a la prochaine mise a jour.
 
 ## Premiere contribution

@@ -8,7 +8,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
       gainAttachment (p.apvts, "gain", gainSlider)
 {
     // Texte accentue : toujours passer par fromUTF8, jamais une chaine brute dans juce::String.
-    title.setText (juce::String::fromUTF8 ("Droz Premier Jet"), juce::dontSendNotification);
+    title.setText (juce::String::fromUTF8 ("Droz Test v0"), juce::dontSendNotification);
     title.setJustificationType (juce::Justification::centred);
     title.setFont (juce::FontOptions (20.0f));
     addAndMakeVisible (title);

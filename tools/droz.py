@@ -4,7 +4,7 @@
   python tools/droz.py nouveau <dossier> --nom "Mon Plugin" [--type effet|instrument] [--auteur fx]
   python tools/droz.py verifier            registre des plugins : codes uniques, champs presents
   python tools/droz.py liste               tableau des plugins
-  python tools/droz.py vitrine             refait le tableau des plugins du README
+  python tools/droz.py vitrine             refait le tableau des plugins du README (publies et en chantier)
   python tools/droz.py modifies <base>     plugins touches depuis <base> (pour la compilation auto)
 """
 from __future__ import annotations
@@ -107,9 +107,6 @@ def cmd_verifier(_) -> int:
     # Non bloquant : un oubli ne doit pas faire rougir la PR de quelqu'un d'autre.
     for e in ecarts_habillage():
         print("A FAIRE habillage (docs/HABILLAGE.md) :", e)
-    nouveau = readme_avec_vitrine()
-    if nouveau is not None and nouveau != README.read_text(encoding="utf-8"):
-        print("A FAIRE : le tableau des plugins du README n'est plus a jour, lancer `python tools/droz.py vitrine`")
     return 1 if err else 0
 
 
@@ -142,32 +139,81 @@ def ecarts_habillage() -> list[str]:
 
 README = RACINE / "README.md"
 DEBUT, FIN = "<!-- vitrine:debut -->", "<!-- vitrine:fin -->"
+DEPOT = "https://github.com/droz-lab/plugins"
+
+
+def _git(*args: str) -> str:
+    r = subprocess.run(["git", *args], cwd=RACINE, capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def plugins_en_chantier() -> dict[str, tuple[str, dict]]:
+    """Plugins presents sur une branche du depot mais pas encore dans main : dossier -> (branche, plugin.json)."""
+    _git("fetch", "--quiet", "--depth", "1", "origin", "+refs/heads/*:refs/remotes/origin/*")
+    dans_main = set(metas())
+    cibles_main = {str(m.get("cible")) for m in metas().values()}  # un plugin renomme garde sa cible
+    trouves: dict[str, tuple[str, dict]] = {}
+    for ref in sorted(_git("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin").split()):
+        branche = ref.removeprefix("origin/")
+        if branche in ("HEAD", "main") or ref == "origin":
+            continue
+        for fichier in _git("ls-tree", "-r", "--name-only", ref, "--", "plugins").split("\n"):
+            morceaux = fichier.split("/")
+            if len(morceaux) != 3 or morceaux[2] != "plugin.json":
+                continue
+            dossier = morceaux[1]
+            if dossier.startswith("_") or dossier in dans_main:
+                continue
+            try:
+                meta = json.loads(_git("show", f"{ref}:{fichier}"))
+            except json.JSONDecodeError:
+                continue
+            if str(meta.get("cible")) in cibles_main:
+                continue
+            # La branche au nom d'une personne passe avant une branche de travail automatique.
+            if dossier not in trouves or (trouves[dossier][0].startswith("claude/") and not branche.startswith("claude/")):
+                trouves[dossier] = (branche, meta)
+    return trouves
+
+
+def etiquettes() -> set[str]:
+    distantes = {l.split("refs/tags/")[-1] for l in _git("ls-remote", "--tags", "origin").splitlines() if "refs/tags/" in l}
+    return distantes or set(_git("tag").split())
+
+
+def _ligne(nom: str, lien: str, meta: dict, etat: str, windows: str, mac: str) -> str:
+    description = re.sub(r"\s*\(migre[^)]*\)", "", str(meta.get("description", ""))).replace("|", "/").strip() or "-"
+    auteur = {"yoy": "YoY", "zomban": "Zomban", "fx": "Fx", "equipe": "equipe"}.get(str(meta.get("auteur", "-")).lower(), meta.get("auteur", "-"))
+    return f"| [{nom}]({lien}) | {description} | {auteur} | {etat} | {windows} | {mac} |"
 
 
 def tableau_vitrine() -> str:
-    lignes = ["| Plugin | Ce qu'il fait | Version | Responsable |", "|---|---|---|---|"]
+    lignes = ["| Plugin | Ce qu'il fait | Par | Etat | Windows | Mac |", "|---|---|---|---|---|---|"]
+    publies = etiquettes()
     for dossier, m in metas().items():
         if dossier.startswith("_"):
             continue
-        description = str(m.get("description", "")).replace("|", "/").strip() or "-"
-        lignes.append(f"| [{m.get('nom')}](plugins/{dossier}/NOTES.md) | {description} | {m.get('version')} | {m.get('auteur')} |")
+        nom = str(m.get("nom"))
+        fichier = nom.replace(" ", "-")
+        if f"{dossier}-v{m.get('version')}" in publies:
+            base = f"{DEPOT}/releases/download/dernier/{fichier}"
+            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, f"v{m.get('version')}",
+                                 f"[Installeur]({base}-Setup.exe)", f"[Zip]({base}-Mac.zip)"))
+        else:
+            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, f"v{m.get('version')}, pas encore publie", "-", "-"))
+    for dossier, (branche, m) in sorted(plugins_en_chantier().items(), key=lambda x: str(x[1][1].get("nom")).lower()):
+        lignes.append(_ligne(str(m.get("nom")), f"{DEPOT}/tree/{branche}/plugins/{dossier}", m, "en chantier", "-", "-"))
     return "\n".join(lignes)
 
 
-def readme_avec_vitrine() -> str | None:
+def cmd_vitrine(_) -> int:
     texte = README.read_text(encoding="utf-8")
     if DEBUT not in texte or FIN not in texte:
-        return None
-    avant, reste = texte.split(DEBUT, 1)
-    return avant + DEBUT + "\n" + tableau_vitrine() + "\n" + FIN + reste.split(FIN, 1)[1]
-
-
-def cmd_vitrine(_) -> int:
-    nouveau = readme_avec_vitrine()
-    if nouveau is None:
         print(f"ERREUR README.md : reperes {DEBUT} et {FIN} introuvables")
         return 1
-    if nouveau != README.read_text(encoding="utf-8"):
+    avant, reste = texte.split(DEBUT, 1)
+    nouveau = avant + DEBUT + "\n" + tableau_vitrine() + "\n" + FIN + reste.split(FIN, 1)[1]
+    if nouveau != texte:
         README.write_text(nouveau, encoding="utf-8", newline="\n")
         print("README.md : tableau des plugins refait")
     else:
