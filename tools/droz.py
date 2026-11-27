@@ -297,8 +297,11 @@ def plugins_en_chantier() -> dict[str, tuple[str, dict]]:
                 continue
             if str(meta.get("cible")) in cibles_main or str(meta.get("cible")) in RETIRES:
                 continue
-            # La branche au nom d'une personne passe avant une branche de travail automatique.
-            if dossier not in trouves or (trouves[dossier][0].startswith("claude/") and not branche.startswith("claude/")):
+            # La branche de l'auteur du plugin d'abord, puis celle d'une autre personne, puis une branche
+            # de travail automatique.
+            def rang(b: str, m: dict) -> int:
+                return 0 if b.startswith(str(m.get("auteur", "")).lower() + "/") else (2 if b.startswith("claude/") else 1)
+            if dossier not in trouves or rang(branche, meta) < rang(*trouves[dossier]):
                 trouves[dossier] = (branche, meta)
     _CHANTIERS = trouves
     return trouves
@@ -626,58 +629,36 @@ def cmd_vitrine(_) -> int:
 
 
 def cmd_accueil(a) -> int:
-    """Le README, page d'accueil du depot : le Droz Software Center d'abord, puis chaque plugin avec ce qu'il
-    fait, puis les chantiers. Ecrit sur la sortie standard. `centre.yml` le range dans main tout seul, par une
-    PR du robot : ne pas le modifier a la main. Rien de ce qui bouge a chaque push n'y figure (ni build, ni
-    etat du Verdict), pour que la page ne change que quand un plugin change."""
+    """Le README, page d'accueil du depot : le Droz Software Center, puis un seul tableau compact de tous les
+    plugins, publies et en chantier. Ecrit sur la sortie standard. `centre.yml` le range dans main tout seul,
+    par une PR du robot : ne pas le modifier a la main. Rien de ce qui bouge a chaque push n'y figure (ni
+    build, ni etat du Verdict), pour que la page ne change que quand un plugin change."""
     essais = essais_en_cours(a.essais)
     out = ["<!-- Page ecrite par `python tools/droz.py accueil` et rangee toute seule (centre.yml). Ne pas modifier a la main. -->",
            "# DROZ LAB", "",
            "Plugins audio VST3 du collectif [Droz](https://drozrecordz.com).", "",
-           "## Droz Software Center", "",
-           f"**[Telecharger le Droz Software Center]({DEPOT}/releases/download/dernier/{INSTALLEUR_CENTRE})** (Windows)", "",
-           "Une seule appli pour installer, mettre a jour et desinstaller tous les plugins ci-dessous, chantiers compris, d'un clic. "
-           "Double-clique sur le fichier telecharge. Windows signale un editeur inconnu : \"Informations complementaires\" puis \"Executer quand meme\".", ""]
-
-    def bloc(nom, version, auteur, resume, reglages, liens) -> list[str]:
-        lignes = [f"### {nom}", "", f"`{version}` - par {auteur}", "", resume]
-        if reglages:
-            lignes += ["", "Reglages : " + ", ".join(reglages) + "."]
-        return lignes + ["", " · ".join(liens), ""]
-
-    out += ["## Plugins", ""]
-    sortis = [(d, m) for d, m in metas().items() if not d.startswith("_")]
-    for dossier, m in sortis:
-        f = fiche_de(dossier)
-        out += bloc(str(m.get("nom")), str(m.get("version")), _qui(m), f["fiche"] or _quoi(m, 400), f["reglages"],
-                    [f"[Installer (Windows)]({lien_installeur(str(m.get('nom')))})",
-                     f"[fiche complete](plugins/{dossier}/FICHE.md)" if (PLUGINS / dossier / "FICHE.md").exists()
-                     else f"[notes](plugins/{dossier}/NOTES.md)"])
-    if not sortis:
-        out += ["Aucun plugin publie pour l'instant : les premiers sont en chantier, juste en dessous.", ""]
-
-    out += ["## En chantier", "",
-            "Les plugins en cours de fabrication. Chaque mise a jour d'une branche qui passe les controles devient installable \"a l'essai\", ici et dans le Droz Software Center.", ""]
-    chantiers = sorted(plugins_en_chantier().items(), key=lambda x: str(x[1][1].get("nom")).lower())
-    for dossier, (branche, m) in chantiers:
+           f"**[Telecharger le Droz Software Center]({DEPOT}/releases/download/dernier/{INSTALLEUR_CENTRE})** (Windows) : "
+           "installe et met a jour tous les plugins d'un clic.", "",
+           "| Plugin | Version | Par | Ce que ca fait | Installer |", "|---|---|---|---|---|"]
+    for dossier, m in metas().items():
+        if dossier.startswith("_"):
+            continue
+        page = "FICHE.md" if (PLUGINS / dossier / "FICHE.md").exists() else "NOTES.md"
+        out.append(f"| **[{m.get('nom')}](plugins/{dossier}/{page})** | {m.get('version')} | {_qui(m)} | {_quoi(m)} | "
+                   f"[Windows]({lien_installeur(str(m.get('nom')))}) |")
+    for dossier, (branche, m) in sorted(plugins_en_chantier().items(), key=lambda x: str(x[1][1].get("nom")).lower()):
         e = essais.get(dossier)
-        liens = [f"[Installer l'essai (Windows)]({lien_essai(e['fichier'])})"] if e else ["pas encore installable"]
-        liens.append(f"[suivre le chantier]({DEPOT}/tree/{branche}/plugins/{dossier})")
-        out += bloc(str(m.get("nom")), f"{e.get('version')} essai" if e else f"{m.get('version')} en chantier", _qui(m), (e or {}).get("fiche") or _quoi(m, 400),
-                    (e or {}).get("reglages") or [], liens)
-    if not chantiers:
-        out += ["Aucun chantier en cours.", ""]
-
-    out += ["## Participer", "",
-            f"- Membres du collectif : [par ou commencer](docs/ATELIER.md). Ou en est chaque chantier : [la page de l'atelier]({DEPOT}/releases/tag/dernier).",
-            f"- Une idee de plugin : [formulaire]({DEPOT}/issues/new?template=idee-de-plugin.yml). Un souci : [formulaire]({DEPOT}/issues/new?template=souci.yml).",
-            "- Comment on travaille : [la methode](docs/METHODE.md), [l'habillage](docs/HABILLAGE.md).", "",
-            "<details>", "<summary>Mac, Linux, zips</summary>", "",
-            f"Zips de chaque version : [Releases]({DEPOT}/releases).", "",
-            "- Mac : `curl -fsSL https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.sh | bash -s -- <dossier>`",
-            "- Mac a la main : copie le `.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`, puis `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/\"<Nom>.vst3\"`.",
-            "- Windows a la main : copie le dossier `.vst3` du zip dans ton dossier VST3.", "",
-            "</details>"]
+        installer = f"[Windows]({lien_essai(e['fichier'])})" if e else "bientot"
+        out.append(f"| **[{m.get('nom')}]({DEPOT}/tree/{branche}/plugins/{dossier})** | {(e or m).get('version')} essai | {_qui(m)} | "
+                   f"{_quoi(m)} | {installer} |")
+    if len(out) == 9:
+        out.append("| - | - | - | aucun plugin pour l'instant | - |")
+    out += ["",
+            "\"essai\" : plugin en chantier, refait a chaque mise a jour de sa branche. "
+            "Windows signale un editeur inconnu : \"Informations complementaires\" puis \"Executer quand meme\".", "",
+            f"[Participer](docs/ATELIER.md) · [Ou en est l'atelier]({DEPOT}/releases/tag/dernier) · "
+            f"[Proposer une idee]({DEPOT}/issues/new?template=idee-de-plugin.yml) · [Signaler un souci]({DEPOT}/issues/new?template=souci.yml) · "
+            f"[Mac, Linux, zips]({DEPOT}/releases)"]
     print("\n".join(out))
     return 0
 
