@@ -1,0 +1,9 @@
+{
+  "nom": "IDGems Stretch",
+  "cible": "IdgemsStretch",
+  "code": "IdSt",
+  "type": "effet",
+  "version": "0.1.0",
+  "auteur": "YoY",
+  "description": "Gel de frame sonore a un rate, grain et texture (migre depuis la branche claude/focused-cori-y3tqih)"
+}

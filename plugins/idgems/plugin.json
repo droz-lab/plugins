@@ -1,0 +1,9 @@
+{
+  "nom": "IDGems",
+  "cible": "Idgems",
+  "code": "Idg1",
+  "type": "effet",
+  "version": "0.1.0",
+  "auteur": "YoY",
+  "description": "Machine a glitch randomisable : rack d'effets IDGems (migre depuis IDGems-Plugin)"
+}
