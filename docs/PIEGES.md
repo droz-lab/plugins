@@ -38,3 +38,4 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Zomban, verifie. JUCE decide a la compilation si un VST3 envoie du MIDI (`JucePlugin_ProducesMidiOutput`) : `producesMidi()` a `true` ne suffit pas. Mettre `"midi_sortie": true` dans le `plugin.json`. Les CC partent vers le DAW en `LegacyMIDICCOutEvent`.
 - 2026-11-27, Zomban, a retenir. Ableton ne route la sortie MIDI que des instruments, pas des effets audio : un plugin qui envoie du MIDI doit etre de type `instrument`.
+- 2026-11-27, Zomban, verifie. `AudioParameterBool` garde telle quelle une valeur intermediaire envoyee par l'hote (0.37) mais la sauve en 0 ou 1 : le test "etat" de l'outil commun echoue. Parade : un `AudioParameterChoice` { "Non", "Oui" }, qui fonctionne aussi avec `ButtonAttachment`.
