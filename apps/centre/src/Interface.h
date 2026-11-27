@@ -1,5 +1,5 @@
-// La fenetre du centre : une seule page, la liste des plugins. Pour chacun : sa fiche en clair, sa version,
-// un bouton. Habillage : droz::ui uniquement (docs/HABILLAGE.md). Tout travail long passe par un fil a part,
+// La fenetre du centre : une seule page, une grille de cartes centree. Par plugin : sa fiche en clair, sa
+// version, un bouton. Pas de bouton Actualiser : le catalogue se relit quand la fenetre revient devant (ou F5). Habillage : droz::ui uniquement (docs/HABILLAGE.md). Tout travail long passe par un fil a part,
 // un a la fois.
 #pragma once
 
@@ -17,15 +17,15 @@ namespace centre
 namespace ui = droz::ui;
 
 //==============================================================================
-/** Un plugin : nom, auteur, version, fiche, etat, bouton. */
-class Ligne final : public juce::Component
+/** Une carte par plugin, tout centre : auteur, nom, fiche, etat, bouton. */
+class Carte final : public juce::Component
 {
 public:
-    static constexpr int hauteurTitre = 34;
+    static constexpr int hauteur = 208, largeurMin = 288;
 
     std::function<void (const juce::String& nom, bool installer)> surAction;
 
-    Ligne()
+    Carte()
     {
         principal.setTooltip (fr ("Pose le plugin dans le dossier VST3 choisi. Windows demande les droits à chaque fois."));
         retirer.setTooltip (fr ("Retire le plugin du dossier VST3."));
@@ -36,11 +36,10 @@ public:
         addAndMakeVisible (retirer);
     }
 
-    void regler (const Plugin& p, const juce::String& titreSection, bool occupe, bool bloque, const Resultat& dernier, bool catalogueLu)
+    void regler (const Plugin& p, bool occupe, bool bloque, const Resultat& dernier, bool catalogueLu)
     {
         plugin = p;
         avecCatalogue = catalogueLu;
-        titre = titreSection;
         enCours = occupe;
         resultat = dernier;
         const auto etat = p.etat();
@@ -53,54 +52,32 @@ public:
         repaint();
     }
 
-    int hauteurVoulue() const
-    {
-        return 112 + (plugin.reglages.isEmpty() ? 0 : 20) + (titre.isNotEmpty() ? hauteurTitre : 0);
-    }
-
     void paint (juce::Graphics& g) override
     {
-        auto zone = getLocalBounds();
-        if (titre.isNotEmpty())
-        {
-            g.setColour (ui::colours::dim);
-            g.setFont (ui::caps (10.0f));
-            g.drawText (ui::upper (titre), zone.removeFromTop (hauteurTitre).withTrimmedTop (12), juce::Justification::centredLeft);
-        }
+        const auto zone = getLocalBounds();
         g.setColour (ui::colours::panel);
         g.fillRoundedRectangle (zone.toFloat(), ui::metrics::corner);
+        const auto dedans = zone.reduced (ui::metrics::margin);
+        int y = dedans.getY();
+        const auto ligne = [&] (int h) { const auto r = dedans.withY (y).withHeight (h); y += h; return r; };
 
-        auto texte = zone.reduced (marge, 0).withTrimmedRight (largeurDroite + marge);
-        int y = zone.getY() + 14;
-
-        // Nom, et l'etiquette des chantiers.
-        auto haut = texte.withY (y).withHeight (24);
-        const auto nom = plugin.nom.startsWithIgnoreCase ("droz ") ? plugin.nom.substring (5) : plugin.nom;
-        const auto police = ui::caps (15.0f);
-        g.setFont (police);
-        g.setColour (ui::colours::text);
-        const int largeurNom = juce::jmin (haut.getWidth() - 70, juce::roundToInt (juce::GlyphArrangement::getStringWidth (police, ui::upper (nom))) + 6);
-        g.drawText (ui::upper (nom), haut.removeFromLeft (largeurNom), juce::Justification::centredLeft, true);
-        if (plugin.essai)
-        {
-            const auto etiquette = haut.removeFromLeft (64).withTrimmedLeft (10).withSizeKeepingCentre (52, 18).toFloat();
-            g.setColour (ui::colours::dim);
-            g.drawRoundedRectangle (etiquette.reduced (0.5f), ui::metrics::corner, 1.0f);
-            g.setFont (ui::caps (9.0f));
-            g.drawText ("ESSAI", etiquette, juce::Justification::centred);
-        }
-        y += 26;
-
-        // Auteur et version.
+        // Qui, et l'etiquette des chantiers.
         juce::StringArray qui;
         if (plugin.auteur.isNotEmpty())
             qui.add ("par " + plugin.auteur);
-        if (plugin.dansCatalogue)
-            qui.add ("version " + plugin.version);
+        if (plugin.essai)
+            qui.add ("essai");
         g.setColour (ui::colours::dim);
-        g.setFont (ui::body (13.0f));
-        g.drawText (qui.joinIntoString ("  -  "), texte.withY (y).withHeight (18), juce::Justification::centredLeft, true);
-        y += 24;
+        g.setFont (ui::caps (9.0f));
+        g.drawText (ui::upper (qui.joinIntoString ("  -  ")), ligne (12), juce::Justification::centred, true);
+        y += 8;
+
+        // Nom, sans le prefixe "Droz" : il est deja dans l'en-tete.
+        const auto nom = plugin.nom.startsWithIgnoreCase ("droz ") ? plugin.nom.substring (5) : plugin.nom;
+        g.setColour (ui::colours::text);
+        g.setFont (ui::caps (15.0f));
+        g.drawText (ui::upper (nom), ligne (20), juce::Justification::centred, true);
+        y += 12;
 
         // La fiche en clair, ou ce qui vient de se passer si ca a rate.
         const bool echec = resultat.message.isNotEmpty() && ! resultat.ok;
@@ -108,19 +85,19 @@ public:
                          : plugin.fiche.isNotEmpty() ? plugin.fiche
                          : plugin.dansCatalogue ? plugin.description
                          : avecCatalogue ? fr ("Absent du catalogue.") : juce::String();
-        g.setColour (ui::colours::text);
-        g.setFont (ui::body (14.0f));
-        g.drawFittedText (fiche, texte.withY (y).withHeight (38), juce::Justification::topLeft, 2, 1.0f);
-        y += 42;
+        g.setColour (echec ? ui::colours::text : ui::colours::dim);
+        g.setFont (ui::body (13.0f));
+        g.drawFittedText (fiche, ligne (52), juce::Justification::centredTop, 3, 1.0f);
+        y += 8;
 
-        if (! plugin.reglages.isEmpty())
+        if (! plugin.reglages.isEmpty() && ! echec)
         {
             g.setColour (ui::colours::dim);
-            g.setFont (ui::body (13.0f));
-            g.drawText (fr ("Réglages : ") + plugin.reglages.joinIntoString (", "), texte.withY (y).withHeight (18), juce::Justification::centredLeft, true);
+            g.setFont (ui::body (11.0f));
+            g.drawText (plugin.reglages.joinIntoString ("  -  "), dedans.withY (y).withHeight (14), juce::Justification::centred, true);
         }
 
-        // Etat, au-dessus du bouton.
+        // Etat, juste au-dessus du bouton.
         const auto etat = plugin.etat();
         juce::String un;
         auto couleur = ui::colours::dim;
@@ -141,38 +118,35 @@ public:
         }
         else
         {
-            un = fr ("non installé");
+            un = "version " + plugin.version;
         }
         g.setColour (couleur);
-        g.setFont (ui::caps (10.0f));
-        g.drawText (ui::upper (un), zone.withTrimmedRight (marge).removeFromRight (largeurDroite).withY (zone.getY() + 16).withHeight (18),
-                    juce::Justification::centredLeft, true);
+        g.setFont (ui::caps (9.0f));
+        g.drawText (ui::upper (un), dedans.withTop (dedans.getBottom() - ui::metrics::row - ui::metrics::gap - 12).withHeight (12),
+                    juce::Justification::centred, true);
     }
 
     void resized() override
     {
-        auto zone = getLocalBounds();
-        if (titre.isNotEmpty())
-            zone.removeFromTop (hauteurTitre);
-        auto droite = zone.withTrimmedRight (marge).removeFromRight (largeurDroite).withTrimmedTop (42);
-        auto premier = droite.removeFromTop (hauteurBouton);
-        droite.removeFromTop (6);
-        // Un seul bouton quand c'est possible : il prend la premiere place.
-        if (principal.isVisible())
+        auto bas = getLocalBounds().reduced (ui::metrics::margin).removeFromBottom (ui::metrics::row);
+        // Un bouton : toute la largeur. Deux : moitie-moitie.
+        if (principal.isVisible() && retirer.isVisible())
         {
-            principal.setBounds (premier);
-            retirer.setBounds (droite.removeFromTop (ui::metrics::row));
+            principal.setBounds (bas.removeFromLeft ((bas.getWidth() - ui::metrics::gap) / 2));
+            bas.removeFromLeft (ui::metrics::gap);
+            retirer.setBounds (bas);
         }
         else
         {
-            retirer.setBounds (premier);
+            principal.setBounds (bas);
+            retirer.setBounds (bas);
         }
     }
 
     Plugin plugin;
 
 private:
-    // L'action refait la liste, donc detruit cette ligne : on la lance apres le clic, avec une copie du nom.
+    // L'action refait la grille, donc detruit cette carte : on la lance apres le clic, avec une copie du nom.
     void cliquer (bool installer)
     {
         juce::MessageManager::callAsync ([action = surAction, nom = plugin.nom, installer]
@@ -182,49 +156,96 @@ private:
         });
     }
 
-    static constexpr int marge = 18, largeurDroite = 210, hauteurBouton = 30;
-    juce::String titre;
     bool enCours = false, avecCatalogue = true;
     Resultat resultat;
     juce::TextButton principal, retirer;
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Ligne)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Carte)
 };
 
 //==============================================================================
-/** Liste deroulante des lignes, avec un message quand elle est vide. */
-class Liste final : public juce::Component
+/** La grille des cartes, par sections. Les colonnes se partagent la largeur : tout reste centre. */
+class Grille final : public juce::Component
 {
 public:
+    struct Section
+    {
+        juce::String titre;
+        juce::OwnedArray<Carte> cartes;
+        juce::Rectangle<int> zoneTitre;
+    };
+
+    void vider()
+    {
+        sections.clear();
+    }
+
+    Carte* ajouter (const juce::String& titre)
+    {
+        if (sections.isEmpty() || sections.getLast()->titre != titre)
+            sections.add (new Section())->titre = titre;
+        auto* carte = sections.getLast()->cartes.add (new Carte());
+        addAndMakeVisible (carte);
+        return carte;
+    }
+
+    bool vide() const { return sections.isEmpty(); }
+
     void paint (juce::Graphics& g) override
     {
-        if (lignes.isEmpty())
+        if (sections.isEmpty())
         {
             g.setColour (ui::colours::dim);
-            g.setFont (ui::body (14.0f));
-            g.drawFittedText (vide, getLocalBounds().reduced (ui::metrics::gap), juce::Justification::centred, 3);
+            g.setFont (ui::body (13.0f));
+            g.drawFittedText (messageVide, getLocalBounds().reduced (ui::metrics::margin), juce::Justification::centred, 3);
+            return;
         }
-    }
-
-    void resized() override
-    {
-        int y = 0;
-        for (auto* l : lignes)
+        // Titre de section : au centre, un filet de chaque cote.
+        for (auto* s : sections)
         {
-            l->setBounds (0, y, getWidth(), l->hauteurVoulue());
-            y += l->hauteurVoulue() + 10;
+            const auto police = ui::caps (9.0f);
+            const auto texte = ui::upper (s->titre);
+            const int largeur = juce::roundToInt (juce::GlyphArrangement::getStringWidth (police, texte)) + 2 * ui::metrics::gap;
+            const auto milieu = s->zoneTitre.withSizeKeepingCentre (largeur, s->zoneTitre.getHeight());
+            g.setColour (ui::colours::dim);
+            g.setFont (police);
+            g.drawText (texte, milieu, juce::Justification::centred);
+            g.setColour (ui::colours::line);
+            const int y = s->zoneTitre.getCentreY();
+            g.fillRect (s->zoneTitre.getX(), y, milieu.getX() - s->zoneTitre.getX(), 1);
+            g.fillRect (milieu.getRight(), y, s->zoneTitre.getRight() - milieu.getRight(), 1);
         }
     }
 
-    int hauteurVoulue() const
+    /** Range les cartes pour cette largeur et renvoie la hauteur totale. */
+    int ranger (int largeur)
     {
-        int h = 0;
-        for (auto* l : lignes)
-            h += l->hauteurVoulue() + 10;
-        return juce::jmax (h, 160);
+        const int gap = ui::metrics::gap;
+        const int colonnes = juce::jlimit (1, 4, (largeur + gap) / (Carte::largeurMin + gap));
+        const int largeurCarte = (largeur - (colonnes - 1) * gap) / colonnes;
+        int y = 0;
+        for (auto* s : sections)
+        {
+            s->zoneTitre = { 0, y, largeur, hauteurTitre };
+            y += hauteurTitre;
+            // Une derniere rangee incomplete reste centree.
+            const int n = s->cartes.size();
+            for (int i = 0; i < n; ++i)
+            {
+                const int rangee = i / colonnes, dansRangee = juce::jmin (colonnes, n - rangee * colonnes);
+                const int largeurRangee = dansRangee * largeurCarte + (dansRangee - 1) * gap;
+                const int x = (largeur - largeurRangee) / 2 + (i % colonnes) * (largeurCarte + gap);
+                s->cartes[i]->setBounds (x, y + rangee * (Carte::hauteur + gap), largeurCarte, Carte::hauteur);
+            }
+            y += ((n + colonnes - 1) / colonnes) * (Carte::hauteur + gap) + 4;
+        }
+        return juce::jmax (y, 160);
     }
 
-    juce::OwnedArray<Ligne> lignes;
-    juce::String vide;
+    juce::OwnedArray<Section> sections;
+    juce::String messageVide;
+
+private:
+    static constexpr int hauteurTitre = 36;
 };
 
 //==============================================================================
@@ -259,23 +280,22 @@ public:
         dossierAffiche = moteur.dossierVst3;
 
         changer.setTooltip (fr ("Choisir le dossier où ton DAW lit ses VST3. Il est retenu pour la suite."));
-        actualiser.setTooltip (fr ("Relire le catalogue et le dossier VST3."));
         toutMettre.setTooltip (fr ("Met à niveau tous les plugins marqués « mise à jour », l'un après l'autre."));
         nouvelleVersion.setTooltip (fr ("Ouvre le téléchargement de la nouvelle version du centre."));
         changer.onClick = [this] { choisirDossier(); };
-        actualiser.onClick = [this] { recharger(); };
         toutMettre.onClick = [this] { toutMettreAJour(); };
         nouvelleVersion.onClick = [this] { juce::URL (etat.installeurCentre).launchInDefaultBrowser(); };
-        for (auto* b : { &changer, &actualiser, &toutMettre })
-            addAndMakeVisible (*b);
+        addAndMakeVisible (changer);
+        addChildComponent (toutMettre);
         addChildComponent (nouvelleVersion);
-        vue.setViewedComponent (&liste, false);
+        vue.setViewedComponent (&grille, false);
         vue.setScrollBarsShown (true, false);
-        vue.setScrollBarThickness (8);
+        vue.setScrollBarThickness (barre);
         addAndMakeVisible (vue);
 
         setLookAndFeel (&look);
-        setSize (1040, 760);
+        setWantsKeyboardFocus (true);
+        setSize (1000, 720);
         recharger();
     }
 
@@ -288,31 +308,44 @@ public:
     /** Vrai si une installation tourne : la fenetre ne doit pas se fermer au milieu. */
     bool occupee() const { return ! occupes.isEmpty(); }
 
+    /** La fenetre revient au premier plan : on relit le catalogue, sans bouton, au plus une fois par demi-minute. */
+    void revenir()
+    {
+        const auto maintenant = juce::Time::getMillisecondCounter();
+        if (! lecture && occupes.isEmpty() && maintenant - derniereLecture > 30000)
+            recharger();
+    }
+
+    bool keyPressed (const juce::KeyPress& touche) override
+    {
+        if (touche == juce::KeyPress::F5Key && ! lecture && occupes.isEmpty())
+        {
+            recharger();
+            return true;
+        }
+        return false;
+    }
+
     //==========================================================================
     void paint (juce::Graphics& g) override
     {
         g.fillAll (ui::colours::background);
         auto zone = ui::drawHeader (g, getLocalBounds(), "Software Center", DROZ_CENTRE_VERSION);
         zone = ui::drawFooter (g, zone, pied());
-        zone.reduce (marge, ui::metrics::margin);
 
-        auto barre = zone.removeFromTop (hauteurBarre);
-        barre.removeFromRight (largeurBarre);
+        // Le dossier VST3, au centre : libelle, chemin, puis le bouton Changer (place dans resized).
         g.setColour (ui::colours::dim);
-        g.setFont (ui::caps (10.0f));
-        g.drawText ("DOSSIER VST3", barre.removeFromLeft (116), juce::Justification::centredLeft);
+        g.setFont (ui::caps (9.0f));
+        g.drawText ("DOSSIER VST3", zoneLibelle, juce::Justification::centredLeft);
         g.setColour (ui::colours::text);
-        g.setFont (ui::body (14.0f));
-        g.drawText (dossierAffiche.getFullPathName(), barre, juce::Justification::centredLeft, true);
+        g.setFont (ui::body (13.0f));
+        g.drawText (dossierAffiche.getFullPathName(), zoneChemin, juce::Justification::centredLeft, true);
+
         if (avis().isNotEmpty())
         {
-            zone.removeFromTop (ui::metrics::gap);
-            auto cadre = zone.removeFromTop (40);
-            g.setColour (ui::colours::panel);
-            g.fillRoundedRectangle (cadre.toFloat(), ui::metrics::corner);
-            g.setColour (ui::colours::text);
-            g.setFont (ui::body (14.0f));
-            g.drawText (avis(), cadre.reduced (18, 0).withTrimmedRight (nouvelleVersion.isVisible() ? 200 : 0), juce::Justification::centredLeft, true);
+            g.setColour (ui::colours::dim);
+            g.setFont (ui::body (13.0f));
+            g.drawText (avis(), zoneAvis, juce::Justification::centred, true);
         }
     }
 
@@ -321,24 +354,48 @@ public:
         auto zone = getLocalBounds();
         zone.removeFromTop (ui::metrics::header);
         zone.removeFromBottom (ui::metrics::footer);
-        zone.reduce (marge, ui::metrics::margin);
+        // Meme marge a gauche et a droite : la barre de defilement a sa place reservee des deux cotes.
+        zone.reduce (ui::metrics::margin + barre, ui::metrics::margin);
 
-        auto barre = zone.removeFromTop (hauteurBarre);
-        toutMettre.setBounds (barre.removeFromRight (196));
-        barre.removeFromRight (8);
-        actualiser.setBounds (barre.removeFromRight (116));
-        barre.removeFromRight (8);
-        changer.setBounds (barre.removeFromRight (104));
+        // Dossier VST3 : un groupe centre.
+        const auto ligne = zone.removeFromTop (ui::metrics::row);
+        const int largeurLibelle = juce::roundToInt (juce::GlyphArrangement::getStringWidth (ui::caps (9.0f), "DOSSIER VST3")) + ui::metrics::gap;
+        const int largeurBouton = 96;
+        const int largeurChemin = juce::jmin (ligne.getWidth() - largeurLibelle - largeurBouton - ui::metrics::gap,
+                                              juce::roundToInt (juce::GlyphArrangement::getStringWidth (ui::body (13.0f), dossierAffiche.getFullPathName())) + 4);
+        auto groupe = ligne.withSizeKeepingCentre (largeurLibelle + largeurChemin + ui::metrics::gap + largeurBouton, ligne.getHeight());
+        zoneLibelle = groupe.removeFromLeft (largeurLibelle);
+        zoneChemin = groupe.removeFromLeft (largeurChemin);
+        groupe.removeFromLeft (ui::metrics::gap);
+        changer.setBounds (groupe);
+
+        // Une ligne de plus seulement quand il y a quelque chose a dire ou a faire.
+        const bool aJour = nombreAMettreAJour() == 0;
+        toutMettre.setVisible (! aJour);
         nouvelleVersion.setVisible (nouvelleVersionDispo());
+        zoneAvis = {};
         if (avis().isNotEmpty())
         {
             zone.removeFromTop (ui::metrics::gap);
-            auto cadre = zone.removeFromTop (40);
-            nouvelleVersion.setBounds (cadre.removeFromRight (200).withTrimmedRight (8).withSizeKeepingCentre (184, ui::metrics::row));
+            zoneAvis = zone.removeFromTop (ui::metrics::row);
+            if (nouvelleVersion.isVisible())
+            {
+                const int largeurTexte = juce::roundToInt (juce::GlyphArrangement::getStringWidth (ui::body (13.0f), avis())) + 4;
+                auto ensemble = zoneAvis.withSizeKeepingCentre (juce::jmin (zoneAvis.getWidth(), largeurTexte + ui::metrics::gap + 132), zoneAvis.getHeight());
+                nouvelleVersion.setBounds (ensemble.removeFromRight (132));
+                ensemble.removeFromRight (ui::metrics::gap);
+                zoneAvis = ensemble;
+            }
         }
-        zone.removeFromTop (ui::metrics::gap);
-        vue.setBounds (zone);
-        liste.setSize (juce::jmax (100, vue.getWidth() - 12), liste.hauteurVoulue());
+        if (! aJour)
+        {
+            zone.removeFromTop (ui::metrics::gap);
+            toutMettre.setBounds (zone.removeFromTop (ui::metrics::row).withSizeKeepingCentre (240, ui::metrics::row));
+        }
+        zone.removeFromTop (4);
+        // La vue deborde a droite de la largeur de sa barre : la grille reste au centre de la fenetre.
+        vue.setBounds (zone.withTrimmedRight (-barre));
+        grille.setSize (zone.getWidth(), grille.ranger (zone.getWidth()));
     }
 
     /** Captures : rend la fenetre telle qu'elle est. */
@@ -391,6 +448,7 @@ private:
     void recharger()
     {
         lecture = true;
+        derniereLecture = juce::Time::getMillisecondCounter();
         mettreAJourBoutons();
         repaint();
         lancer ([this] { moteur.charger(); }, [this]
@@ -401,7 +459,7 @@ private:
         });
     }
 
-    void agir (juce::String nom, bool installer) // par valeur : reconstruire() detruit les lignes
+    void agir (juce::String nom, bool installer) // par valeur : reconstruire() detruit les cartes
     {
         if (occupes.contains (nom))
             return;
@@ -457,6 +515,14 @@ private:
         return etat.versionCentre.isNotEmpty() && etat.installeurCentre.isNotEmpty() && comparerVersions (etat.versionCentre, DROZ_CENTRE_VERSION) > 0;
     }
 
+    int nombreAMettreAJour() const
+    {
+        int n = 0;
+        for (const auto& p : etat.plugins)
+            n += p.etat() == Etat::miseAJour ? 1 : 0;
+        return n;
+    }
+
     juce::String avis() const
     {
         if (lecture && etat.plugins.empty())
@@ -465,7 +531,7 @@ private:
             return fr ("Catalogue non lu (") + etat.erreur + "). "
                  + (etat.catalogueAncien ? fr ("Voici le dernier catalogue connu et ce qui est installé.") : fr ("Voici ce qui est installé."));
         if (nouvelleVersionDispo())
-            return fr ("Une nouvelle version du centre existe : ") + etat.versionCentre + ".";
+            return fr ("Une nouvelle version du centre existe : ") + etat.versionCentre;
         return {};
     }
 
@@ -482,43 +548,36 @@ private:
 
     void mettreAJourBoutons()
     {
-        bool aJour = true;
-        for (const auto& p : etat.plugins)
-            aJour = aJour && p.etat() != Etat::miseAJour;
-        toutMettre.setEnabled (! aJour && ! lecture && occupes.isEmpty());
-        actualiser.setEnabled (! lecture && occupes.isEmpty());
+        const int n = nombreAMettreAJour();
+        toutMettre.setButtonText (fr ("Tout mettre à jour") + (n > 1 ? " (" + juce::String (n) + ")" : juce::String()));
+        toutMettre.setEnabled (! lecture && occupes.isEmpty());
         changer.setEnabled (! lecture && occupes.isEmpty());
     }
 
-    /** Refait les lignes a partir du dernier etat connu. Sections : publies, essais, hors catalogue. */
+    /** Refait les cartes a partir du dernier etat connu. Sections : publies, essais, hors catalogue. */
     void reconstruire()
     {
-        liste.lignes.clear();
+        grille.vider();
         const bool catalogueLu = ! etat.horsLigne || etat.catalogueAncien;
-        const char* const titres[] = { "Plugins", "En chantier, à l'essai", catalogueLu ? "Installés, absents du catalogue" : "Installés" };
+        const char* const titres[] = { "Plugins", "En chantier", catalogueLu ? "Installés, absents du catalogue" : "Installés" };
         for (int section = 0; section < 3; ++section)
-        {
-            bool premier = true;
             for (const auto& p : etat.plugins)
             {
                 const int rang = ! p.dansCatalogue ? 2 : p.essai ? 1 : 0;
                 if (rang != section)
                     continue;
-                auto* l = liste.lignes.add (new Ligne());
+                auto* carte = grille.ajouter (fr (titres[section]));
                 const auto trouve = derniers.find (p.nom);
-                l->regler (p, premier ? fr (titres[section]) : juce::String(), occupes.contains (p.nom), lecture || occupes.contains (p.nom),
-                           trouve != derniers.end() ? trouve->second : Resultat(), catalogueLu);
-                l->surAction = [moi = juce::Component::SafePointer<Fenetre> (this)] (const juce::String& nom, bool installer)
+                carte->regler (p, occupes.contains (p.nom), lecture || occupes.contains (p.nom),
+                               trouve != derniers.end() ? trouve->second : Resultat(), catalogueLu);
+                carte->surAction = [moi = juce::Component::SafePointer<Fenetre> (this)] (const juce::String& nom, bool installer)
                 {
                     if (moi != nullptr)
                         moi->agir (nom, installer);
                 };
-                liste.addAndMakeVisible (l);
-                premier = false;
             }
-        }
-        liste.vide = etat.horsLigne ? fr ("Aucun plugin Droz dans ce dossier VST3.")
-                                    : fr ("Aucun plugin pour l'instant. Chaque plugin apparaît ici dès qu'il passe les contrôles.");
+        grille.messageVide = etat.horsLigne ? fr ("Aucun plugin Droz dans ce dossier VST3.")
+                                            : fr ("Aucun plugin pour l'instant. Chaque plugin apparaît ici dès qu'il passe les contrôles.");
         mettreAJourBoutons();
         resized();
         repaint();
@@ -535,16 +594,17 @@ private:
     std::map<juce::String, Resultat> derniers;
     juce::String dernierMessage;
     bool lecture = false;
+    juce::uint32 derniereLecture = 0;
+    juce::Rectangle<int> zoneLibelle, zoneChemin, zoneAvis;
 
     ui::LookAndFeel look;
     juce::TooltipWindow bulles { this, 600 };
-    juce::TextButton changer { "Changer" }, actualiser { "Actualiser" }, toutMettre { fr ("Tout mettre à jour") },
-        nouvelleVersion { fr ("Télécharger") };
+    juce::TextButton changer { "Changer" }, toutMettre { fr ("Tout mettre à jour") }, nouvelleVersion { fr ("Télécharger") };
     juce::Viewport vue;
-    Liste liste;
+    Grille grille;
     std::unique_ptr<juce::FileChooser> selecteur;
 
-    static constexpr int marge = 20, hauteurBarre = 30, largeurBarre = 196 + 116 + 104 + 16 + 16;
+    static constexpr int barre = 8;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Fenetre)
 };
 } // namespace centre
