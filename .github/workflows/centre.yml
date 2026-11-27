@@ -1,21 +1,23 @@
 name: Centre
 
-# Refait la page du centre Droz Lab : plugins a installer, chantiers en cours, par ou commencer.
-# Elle vit sur la page fixe "dernier" (Releases), a cote des installeurs : une seule adresse pour tout.
-# Contenu : `python tools/droz.py centre`. Rien n'est ecrit dans le depot, donc aucune PR a faire.
+# Refait ce que lisent les membres pour savoir ou en est l'atelier, sur la page fixe "dernier" (Releases) :
+#   - catalogue.json, lu par le Droz Software Center : plugins publies, plugins a l'essai, etat de l'atelier ;
+#   - le texte de la page, pour qui n'a pas l'appli.
+# Contenu : `python tools/droz.py catalogue` et `python tools/droz.py centre`. Rien n'est ecrit dans le depot,
+# donc aucune PR a faire.
 
 on:
   push:
     branches: [main]
   workflow_run:
-    workflows: [Compilation, Sortie]
+    workflows: [Compilation, Sortie, Essais]
     types: [completed]
   schedule:
     - cron: "17 * * * *" # toutes les heures, pour suivre les branches et les PR
   workflow_dispatch:
 
 permissions:
-  contents: write # seulement pour modifier le texte de la page "dernier"
+  contents: write # seulement pour modifier la page "dernier" (texte et catalogue.json)
   pull-requests: read
   checks: read
   actions: read
@@ -26,20 +28,25 @@ concurrency:
 
 jobs:
   centre:
-    name: Page du centre
+    name: Catalogue et page de l'atelier
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Ecrire et poser la page
+      - name: Ecrire et poser le catalogue et la page
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 tools/droz.py centre > centre.md
+          # Les essais des chantiers (essais.yml) : absents tant qu'aucune branche n'a eu de Verdict vert.
+          gh release download essais --pattern essais.json --output essais.json 2> /dev/null || echo '{}' > essais.json
+          python3 tools/droz.py centre --essais essais.json > centre.md
+          python3 tools/droz.py catalogue --essais essais.json > catalogue.json
+          python3 -c "import json; c = json.load(open('catalogue.json')); print(len(c['plugins']), 'plugin(s) dans le catalogue')"
           cat centre.md >> "$GITHUB_STEP_SUMMARY"
           if ! gh release view dernier > /dev/null 2>&1; then
-            gh release create dernier --title "Droz Lab : le centre" --latest=false --notes-file centre.md
+            gh release create dernier --title "Droz Lab : l'atelier" --latest=false --notes-file centre.md
           else
-            gh release edit dernier --title "Droz Lab : le centre" --notes-file centre.md
+            gh release edit dernier --title "Droz Lab : l'atelier" --notes-file centre.md
           fi
+          gh release upload dernier catalogue.json --clobber

@@ -144,7 +144,7 @@ Elles sont dans `CLAUDE.md` (section "Regles de code") et ne sont pas recopiees 
 
 - Retenu : pluginval 1.0.4. Son auteur donne le niveau 5 comme minimum de compatibilite avec les hotes ; le gabarit de reference Pamplejuce le lance au niveau 10. D'ou nos deux paliers. https://github.com/Tracktion/pluginval
 - Ce que les niveaux ajoutent, lu dans ses sources : au niveau 6 le changement de frequence sans liberation, la restauration de l'etat parametre par parametre et le stress de l'editeur ; au 7 l'etat charge depuis un autre fil ; au 8 la comparaison exacte de l'etat et les parametres discrets. https://github.com/Tracktion/pluginval
-- Constate ici le 27/11/2026 : le modele et Test v0 passent deja le niveau 10.
+- Constate ici le 27/11/2026 : le modele passe deja le niveau 10.
 - Deux trous de la 1.0.4, constates dans nos journaux : le validateur VST3 de Steinberg est saute tant qu'on ne lui donne pas son chemin ("Skipping vst3 validator"), et le test d'allocations n'y est pas compile. Notre sonde couvre le second, le premier est en tete de la partie 6.
 - A suivre : pluginval 2.0.0 est en beta. Il integre le validateur Steinberg, le test d'allocations, des rapports lisibles par une machine et la comparaison a un WAV de reference. On y passe quand il est stable. https://github.com/Tracktion/pluginval/blob/develop/CHANGELIST.md
 

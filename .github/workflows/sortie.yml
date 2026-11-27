@@ -7,18 +7,20 @@ name: Sortie
 #   - pousser une etiquette <dossier>-v<version>.
 # Resultat : une Release <dossier>-v<version> (installeur Windows, zips Mac, Linux, Windows)
 # et l'installeur Windows sur la page fixe "dernier", celle que pointe le README.
+# Le Droz Software Center (apps/centre) se publie de la meme facon : monter "version" dans apps/centre/app.json
+# et fusionner. Release centre-v<version>, et Droz-Software-Center-Setup.exe sur la page "dernier".
 # Menage : une seule version publiee par plugin, celle de main. Les versions depassees et celles
 # d'un plugin retire ou renomme sont supprimees (Release et etiquette) a chaque passage.
 
 on:
   push:
     branches: [main]
-    paths: ["plugins/*/plugin.json", ".github/workflows/sortie.yml"]
+    paths: ["plugins/*/plugin.json", "apps/centre/app.json", ".github/workflows/sortie.yml"]
     tags: ["*-v[0-9]*"]
   workflow_dispatch:
     inputs:
       dossier:
-        description: "Dossier du plugin a publier (ex. test-v0)"
+        description: "Dossier du plugin a publier (ex. courbes), ou centre pour le Droz Software Center"
         required: true
 
 permissions:
@@ -34,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       dossiers: ${{ steps.choix.outputs.dossiers }}
+      centre: ${{ steps.choix.outputs.centre }}
     steps:
       - uses: actions/checkout@v4
       - id: choix
@@ -46,7 +49,15 @@ jobs:
         run: |
           version_de() { python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$1"; }
           dossiers=""
-          if [ "$EVENEMENT" = "workflow_dispatch" ]; then
+          centre=non
+          version_centre=$(python3 -c "import json; print(json.load(open('apps/centre/app.json'))['version'])" 2> /dev/null || true)
+          if [ "$EVENEMENT" = "workflow_dispatch" ] && [ "$DEMANDE" = "centre" ]; then
+            if gh release view "centre-v$version_centre" > /dev/null 2>&1; then
+              echo "La version centre-v$version_centre existe deja : monter 'version' dans apps/centre/app.json avant de publier."
+              exit 1
+            fi
+            centre=oui
+          elif [ "$EVENEMENT" = "workflow_dispatch" ]; then
             if [ ! -f "plugins/$DEMANDE/plugin.json" ]; then
               echo "Pas de plugin dans plugins/$DEMANDE"
               exit 1
@@ -57,6 +68,12 @@ jobs:
               exit 1
             fi
             dossiers="$DEMANDE"
+          elif [ "$TYPE_REF" = "tag" ] && [ "${REF%-v*}" = "centre" ]; then
+            if [ "${REF##*-v}" != "$version_centre" ]; then
+              echo "L'etiquette $REF ne correspond pas a la version de apps/centre/app.json : aligner les deux."
+              exit 1
+            fi
+            gh release view "$REF" > /dev/null 2>&1 || centre=oui
           elif [ "$TYPE_REF" = "tag" ]; then
             dossier="${REF%-v*}"
             if [ "${REF##*-v}" != "$(version_de "$dossier")" ]; then
@@ -71,17 +88,22 @@ jobs:
               case "$dossier" in _*) continue ;; esac
               gh release view "$dossier-v$(version_de "$dossier")" > /dev/null 2>&1 || dossiers="${dossiers:+$dossiers,}$dossier"
             done
+            # Et le Droz Software Center, si sa version n'a pas encore de Release.
+            if [ -n "$version_centre" ] && ! gh release view "centre-v$version_centre" > /dev/null 2>&1; then centre=oui; fi
           fi
-          echo "a publier : ${dossiers:-rien}"
+          echo "a publier : ${dossiers:-aucun plugin}, Droz Software Center : $centre"
           echo "dossiers=$dossiers" >> "$GITHUB_OUTPUT"
+          echo "centre=$centre" >> "$GITHUB_OUTPUT"
 
   compiler:
     needs: lire
-    if: needs.lire.outputs.dossiers != ''
+    if: needs.lire.outputs.dossiers != '' || needs.lire.outputs.centre == 'oui'
     uses: ./.github/workflows/compilation.yml
     with:
-      plugins: ${{ needs.lire.outputs.dossiers }}
-      mac: true
+      # Le centre seul : on compile quand meme le modele, pour ne pas recompiler tous les plugins.
+      plugins: ${{ needs.lire.outputs.dossiers || '_modele' }}
+      mac: ${{ needs.lire.outputs.dossiers != '' }}
+      centre: ${{ needs.lire.outputs.centre == 'oui' }}
 
   publier:
     name: Publication
@@ -98,7 +120,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DOSSIERS: ${{ needs.lire.outputs.dossiers }}
+          CENTRE: ${{ needs.lire.outputs.centre }}
         run: |
+          page_dernier() {
+            gh release view dernier > /dev/null 2>&1 || gh release create dernier --title "Droz Lab : l'atelier" --latest=false --target "$GITHUB_SHA" \
+              --notes "Le Droz Software Center et un installeur Windows par plugin, toujours la derniere version."
+          }
           champ() { python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))[sys.argv[2]])" "$1" "$2"; }
           for dossier in ${DOSSIERS//,/ }; do
             nom=$(champ "$dossier" nom)
@@ -113,15 +140,23 @@ jobs:
             gh release create "$tag" recu/plugins-*/"$fichier"-* $capture --title "$nom $version" --notes-file "$notes" --target "$GITHUB_SHA" --latest=false
 
             # Page fixe "dernier" : un seul fichier par plugin, l'installeur Windows de sa derniere version.
-            if ! gh release view dernier > /dev/null 2>&1; then
-              gh release create dernier --title "Telecharger les plugins" --latest=false --target "$GITHUB_SHA" \
-                --notes "Un installeur Windows par plugin, toujours la derniere version. Mac, Linux et zips : voir le README."
-            fi
+            page_dernier
             gh release upload dernier recu/plugins-*/"$fichier"-Setup.exe --clobber
           done
 
-          # Menage : on retire de la page tout ce qui n'est pas l'installeur d'un plugin present dans main.
+          # Le Droz Software Center : sa Release, et son installeur sur la page "dernier".
+          if [ "$CENTRE" = "oui" ]; then
+            version=$(python3 -c "import json; print(json.load(open('apps/centre/app.json'))['version'])")
+            gh release create "centre-v$version" recu/centre-Windows/Droz-Software-Center-Setup.exe recu/apercu-centre/apercu-centre/*.png \
+              --title "Droz Software Center $version" --notes-file apps/centre/NOTES.md --target "$GITHUB_SHA" --latest=false
+            page_dernier
+            gh release upload dernier recu/centre-Windows/Droz-Software-Center-Setup.exe --clobber
+          fi
+
+          # Menage : on retire de la page tout ce qui n'est pas l'installeur d'un plugin present dans main,
+          # l'installeur du Droz Software Center ou son catalogue.
           attendus=$(python3 -c "import json,glob; print(' '.join(json.load(open(f))['nom'].replace(' ','-')+'-Setup.exe' for f in glob.glob('plugins/*/plugin.json')))")
+          attendus="$attendus Droz-Software-Center-Setup.exe catalogue.json"
           for fichier in $(gh release view dernier --json assets --jq '.assets[].name'); do
             case " $attendus " in
               *" $fichier "*) ;;

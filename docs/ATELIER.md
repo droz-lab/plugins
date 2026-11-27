@@ -2,7 +2,7 @@
 
 Pour les membres du collectif. La page publique est le [README](../README.md).
 
-Tout l'atelier en une page, a jour toute seule : [le centre Droz Lab](https://github.com/droz-lab/plugins/releases/tag/dernier).
+Tout l'atelier dans une appli : le [Droz Software Center](https://github.com/droz-lab/plugins/releases/download/dernier/Droz-Software-Center-Setup.exe) (Windows). Onglet Plugins : installer, mettre a jour, desinstaller, chantiers compris. Onglet Atelier : les PR en attente, les fiches a ecrire, et un bouton qui copie le message ci-dessous. Sans l'appli : [la page de l'atelier](https://github.com/droz-lab/plugins/releases/tag/dernier), a jour toute seule.
 
 ## Commencer ici : un seul message a coller
 
@@ -56,14 +56,12 @@ Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 Une phrase suffit aussi ("fais-moi un gate rythmique qui respire") : l'assistant doit alors remplir la fiche du plugin (`FICHE.md`) lui-meme, te poser trois questions au plus, et te la resumer avant de coder. C'est la [methode](METHODE.md), et le controle Verdict refuse un plugin sans fiche.
 
 3. L'assistant cree `plugins/<dossier>/`, pousse une branche et ouvre une PR. GitHub compile pour Windows (et Linux pour les tests). La version Mac se compile a la demande (Actions > Compilation > Run workflow, case "mac") et a chaque publication.
-4. Recupere le plugin : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Windows` ou `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
+4. Recupere le plugin : des que le controle Verdict de ta PR est vert, il apparait "a l'essai" dans le Droz Software Center, chez toi comme chez les autres. Rien a faire de ton cote. Mac : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
 
-## Premiere contribution (test de l'atelier)
+## Essayer le plugin d'un autre
 
-1. Accepte l'invitation a l'organisation, ouvre le depot avec ton assistant de code.
-2. Demande : `Lis les regles du depot. Je suis <prenom>. Ajoute plugins/test-v0/equipe/<prenom>.txt avec la ligne "<ton texte>", ouvre une PR et envoie-moi la capture de l'interface.`
-3. Quand le controle Verdict est vert, fusionne ta PR (bouton Merge).
-4. Installe le plugin avec le lien du README et ouvre "Droz Test v0" dans ton DAW.
+Ouvre le Droz Software Center, clique sur Actualiser : les chantiers dont le Verdict est vert sont dans "En chantier, a l'essai". Installer pose le plugin dans ton dossier VST3. A chaque nouveau Verdict vert de la branche, la ligne passe a "mise a jour".
+Ferme le DAW ou retire le plugin des pistes avant de mettre a jour : Windows verrouille un plugin charge, et l'appli te le dit sans rien casser.
 
 ## Ce qu'il y a dans le depot
 
@@ -74,9 +72,10 @@ Une phrase suffit aussi ("fais-moi un gate rythmique qui respire") : l'assistant
 | `libs/droz_dsp/` | Briques DSP partagees, C++ pur, testees | PR relue |
 | `libs/droz_ui/` | Habillage commun des interfaces, regle dans `docs/HABILLAGE.md` | PR relue |
 | `carnet/<prenom>/` | Reflexions et idees de chacun, et `PROFIL.md` : ton contexte (niveau en code, DAW, systeme, ecoute, references), pour que l'assistant ne te le redemande pas | Chacun chez soi |
-| `tools/droz.py` | Creer un plugin, verifier le registre | PR relue |
+| `apps/centre/` | Le Droz Software Center : l'appli Windows qui installe les plugins. Memoire dans `apps/centre/NOTES.md` | PR relue |
+| `tools/droz.py` | Creer un plugin, verifier le registre, ecrire le catalogue lu par l'appli | PR relue |
 | `tools/outil/` | Tests communs, rendu WAV et capture d'interface sans DAW | PR relue |
-| `.github/workflows/` | Compilation et sorties | PR relue |
+| `.github/workflows/` | Compilation, sorties, essais des chantiers, catalogue | PR relue |
 | `CLAUDE.md`, `docs/METHODE.md`, `docs/PIEGES.md` | Regles, methode et lecons communes | PR relue (PIEGES : ajout libre) |
 
 ## Regles du jeu
@@ -93,9 +92,11 @@ Une phrase suffit aussi ("fais-moi un gate rythmique qui respire") : l'assistant
 
 Une seule facon de faire, pour tous les plugins et toutes les versions :
 
-1. Monter `version` dans `plugins/<dossier>/plugin.json` et lancer `python tools/droz.py vitrine` (tableau du README).
+1. Monter `version` dans `plugins/<dossier>/plugin.json`.
 2. Fusionner la PR. La version part toute seule : installeur Windows, zips Mac et Linux.
-3. Un seul fichier est mis en avant : l'installeur Windows (`<Nom>-Setup.exe`), sur la page fixe `dernier` que pointe le README. Il demande le dossier VST3 et le retient. Les zips restent sur la Release de la version.
+3. Le Droz Software Center la propose a tout le monde : "mise a jour" chez ceux qui avaient l'ancienne. Un seul fichier par plugin sur la page fixe `dernier` : l'installeur Windows (`<Nom>-Setup.exe`). Les zips restent sur la Release de la version.
+
+Le Droz Software Center se publie pareil : monter `version` dans `apps/centre/app.json` et fusionner. L'appli previent ses utilisateurs qu'une nouvelle version existe.
 
 Un nouveau plugin fusionne dans `main` est publie de la meme facon, a sa premiere fusion.
 Une seule version publiee par plugin : a chaque publication, les versions depassees sont retirees toutes seules (Release et etiquette).
