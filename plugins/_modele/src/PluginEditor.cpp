@@ -3,10 +3,9 @@
 PluginEditor::PluginEditor (PluginProcessor& p)
     : AudioProcessorEditor (&p),
       processor (p),
-      gainAttachment (p.apvts, "gain", gainSlider)
+      gainAttachment (p.apvts, "gain", gain.slider)
 {
-    gainSlider.setTextValueSuffix (" dB");
-    addAndMakeVisible (gainSlider);
+    addAndMakeVisible (gain);
 
     // Apres avoir ajoute les controles : c'est ce qui leur fait reprendre l'habillage (zones de texte comprises).
     setLookAndFeel (&look);
@@ -33,7 +32,9 @@ void PluginEditor::paint (juce::Graphics& g)
     auto name = juce::String::fromUTF8 ("Droz Modèle");
     if (name.startsWithIgnoreCase ("droz "))
         name = name.substring (5);
-    droz::ui::drawHeader (g, getLocalBounds(), name);
+    auto area = droz::ui::drawHeader (g, getLocalBounds(), name, JucePlugin_VersionString);
+    // Pied : la description de plugin.json. A remplacer par un etat utile (tempo, aide) quand le plugin en a un.
+    droz::ui::drawFooter (g, area, juce::String::fromUTF8 (JucePlugin_Desc));
 }
 
 void PluginEditor::resized()
@@ -44,7 +45,9 @@ void PluginEditor::resized()
         processor.editorHeight = getHeight();
     }
 
+    namespace m = droz::ui::metrics;
     auto area = getLocalBounds();
-    area.removeFromTop (44); // en-tete commun
-    gainSlider.setBounds (area.reduced (24));
+    area.removeFromTop (m::header);
+    area.removeFromBottom (m::footer);
+    gain.setBounds (area.reduced (m::margin).withSizeKeepingCentre (m::knobWidth, m::knobHeight));
 }
