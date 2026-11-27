@@ -56,4 +56,10 @@ jobs:
         run: |
           notes="plugins/$DOSSIER/NOTES.md"
           [ -f "$notes" ] || notes=README.md
-          gh release create "$TAG" recu/plugins-*/*.zip recu/apercu/*.png --title "$TAG" --notes-file "$notes"
+          # Les telechargements Windows arrivent en dossier .vst3 : on les zippe pour la Release.
+          for dossier in recu/*-Windows; do
+            [ -d "$dossier" ] || continue
+            (cd "$dossier" && zip -q -r "../../$(basename "$dossier").zip" .)
+          done
+          gh release create "$TAG" ./*-Windows.zip $(find recu -name '*.zip') $(find recu/apercu -name '*.png' 2>/dev/null) \
+            --title "$TAG" --notes-file "$notes"
