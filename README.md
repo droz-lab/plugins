@@ -26,7 +26,7 @@ Atelier commun du collectif Droz : nos plugins sont compiles et verifies automat
 | [Droz Premier Jet](plugins/premier-jet/NOTES.md) | Plugin de test de l'atelier : un gain, et le nom de chaque membre affiche dans l'interface. | 0.1.0 | equipe |
 <!-- vitrine:fin -->
 
-Ce tableau se refait tout seul : `python tools/droz.py vitrine`.
+Pour refaire ce tableau apres un changement de `plugin.json` : `python tools/droz.py vitrine`.
 
 ## Telecharger les plugins
 
