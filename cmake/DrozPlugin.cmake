@@ -20,8 +20,15 @@ function(droz_add_plugin dir)
   _droz_json(fabricant "${meta}" fabricant "Droz")
   _droz_json(code_fabricant "${meta}" code_fabricant "Droz")
   _droz_json(description "${meta}" description "")
+  _droz_json(midi_sortie "${meta}" midi_sortie "false") # true : le plugin envoie du MIDI (notes, CC)
   if(cible STREQUAL "" OR nom STREQUAL "" OR code STREQUAL "")
     message(FATAL_ERROR "${dir}/plugin.json : 'cible', 'nom' et 'code' sont obligatoires")
+  endif()
+
+  if(midi_sortie STREQUAL "true" OR midi_sortie STREQUAL "ON")
+    set(midi_sortie TRUE)
+  else()
+    set(midi_sortie FALSE)
   endif()
 
   if(type STREQUAL "instrument")
@@ -42,7 +49,7 @@ function(droz_add_plugin dir)
     FORMATS ${DROZ_FORMATS}
     IS_SYNTH ${synth}
     NEEDS_MIDI_INPUT ${synth}
-    NEEDS_MIDI_OUTPUT FALSE
+    NEEDS_MIDI_OUTPUT ${midi_sortie}
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     VST3_CATEGORIES ${categories}
