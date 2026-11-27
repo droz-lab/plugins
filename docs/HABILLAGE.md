@@ -17,34 +17,35 @@ L'habillage Droz est obligatoire pour tous les plugins du depot, quel que soit l
 
 ## D'ou ca vient
 
-L'artwork Droz Recordz (Drive DROZ RECORDZ > Communication > Charte Graphique) : une toile ardoise bleu-noir, de l'ecume blanche, des coulees rouge-orange, et le logo blanc en capitales larges et espacees.
+Du site [drozrecordz.com](https://drozrecordz.com) : memes couleurs, memes polices, meme logo. Un plugin Droz se reconnait comme une page du site.
 
-Donc : sombre, texte blanc glace, traits fins, et le rouge-orange comme seule couleur vive.
+Donc : fond presque noir, texte blanc casse, traits fins, et l'orange du site comme seule couleur vive.
 
 ## Couleurs
 
 | Nom | Valeur | Usage |
 |---|---|---|
-| `background` | #0B1219 | fond de la fenetre |
-| `panel` | #1A2732 | cadres, menus, fond du visuel |
-| `line` | #283C47 | filets, pistes des potards et curseurs, etat eteint |
-| `dim` | #8FA1AD | libelles, texte secondaire |
-| `text` | #EDF3F6 | texte, reperes, matiere du visuel |
-| `accent` | #F0431F | valeur d'un controle, etat allume, tete de lecture |
+| `background` | #0E0F11 | fond de la fenetre (fond du site) |
+| `panel` | #22262B | cadres, menus, fond du visuel |
+| `line` | #3A4047 | filets, pistes des potards et curseurs, etat eteint |
+| `dim` | #8E979F | libelles, texte secondaire |
+| `text` | #ECEFF1 | texte, reperes, matiere du visuel |
+| `accent` | #FF5B1F | valeur d'un controle, etat allume, tete de lecture |
 
 - Aucune autre couleur dans un plugin, aucune couleur ecrite en dur. Un besoin qui revient s'ajoute dans `ui.h` par une PR `commun:`.
-- Le rouge-orange veut dire "ca joue" ou "c'est regle ici". Jamais en decoration, jamais en fond.
+- L'orange veut dire "ca joue" ou "c'est regle ici". Jamais en decoration, jamais en fond.
 - Controle desactive : meme dessin a 35 % d'opacite.
 
-## Polices
+## Polices et logo
 
-Deux polices libres (SIL OFL), embarquees dans chaque plugin : le rendu est le meme sur Windows, Mac et Linux.
+Les deux polices du site, libres (SIL OFL), embarquees dans chaque plugin : le rendu est le meme sur Windows, Mac et Linux.
 
 | Fonction | Police | Tailles | Usage |
 |---|---|---|---|
-| `caps(taille)` | Michroma | 15 nom du plugin, 11 "DROZ", 10 boutons, 9 libelles | titres et libelles courts, toujours en capitales avec `upper()` |
-| `mono(taille)` | IBM Plex Mono | 13 valeurs et menus, 11 pied et version | valeurs, menus, textes |
+| `caps(taille)` | Lexend Exa | 15 nom du plugin, 10 boutons, 9 libelles | titres et libelles courts, en capitales avec `upper()` |
+| `body(taille)` | Hanken Grotesk | 13 valeurs et menus, 11 pied et version | valeurs, menus, textes |
 
+- Le logo Droz est dans l'en-tete de chaque plugin (`drawHeader`), jamais redessine ni remplace par du texte.
 - Libelle d'un controle : un mot, deux au plus.
 - Texte accentue : `juce::String::fromUTF8`, et `droz::ui::upper` pour les capitales.
 
@@ -67,7 +68,7 @@ Grille de 4 pixels. Les valeurs sont dans `droz::ui::metrics`.
 
 De haut en bas :
 
-1. En-tete : `drawHeader (g, zone, nom, version)`. "DROZ" a gauche, nom au centre sans le prefixe "Droz", version a droite.
+1. En-tete : `drawHeader (g, zone, nom, version)`. Logo Droz a gauche, nom au centre sans le prefixe "Droz", version a droite.
 2. Visuel anime, sur toute la largeur : c'est lui qui donne son caractere au plugin.
 3. Une rangee de potards. 4 a 6 reglages en facade, pas plus.
 4. Reglages secondaires dans un cadre : `drawPanel (g, zone, titre)`.
@@ -83,7 +84,7 @@ Fenetre redimensionnable, taille gardee dans l'etat. Pour un ratio fixe : `scale
 | Reglage continu en ligne | `juce::Slider` en `LinearHorizontal` ou `LinearVertical` |
 | Choix dans une liste | `juce::ComboBox` |
 | Oui / non | `juce::ToggleButton` |
-| Action, ou choix A/B | `juce::TextButton` (allume = plein rouge-orange) |
+| Action, ou choix A/B | `juce::TextButton` (allume = plein orange) |
 | Visuel anime | deriver `droz::ui::Visual` et dessiner dans `draw()` |
 
 - Un seul `droz::ui::LookAndFeel` par editeur, pose avec `setLookAndFeel` apres avoir ajoute les controles, retire dans le destructeur.
@@ -93,7 +94,7 @@ Fenetre redimensionnable, taille gardee dans l'etat. Pour un ratio fixe : `scale
 ## Visuel anime
 
 - 30 images par seconde, a l'arret quand la fenetre est cachee : `Visual` s'en charge.
-- Matiere en blanc et gris (courbe, grille, pas). Rouge-orange pour ce qui bouge ou joue.
+- Matiere en blanc et gris (courbe, grille, pas). Orange pour ce qui bouge ou joue.
 - Traits de 2 pixels, pas de degrade, pas d'ombre, pas d'image.
 - Le visuel montre ce que fait le son (le rythme, la forme, le niveau), pas une decoration.
 - Il lit ses valeurs par `std::atomic`, jamais de verrou ni d'attente cote audio.

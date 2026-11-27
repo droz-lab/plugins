@@ -50,10 +50,14 @@ Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 
 ## Publier une version
 
-1. Monter `version` dans `plugins/<dossier>/plugin.json`, fusionner la PR.
-2. Onglet **Actions** > **Sortie** > **Run workflow**, taper le dossier du plugin (ex. `test-v0`).
-3. Meme sortie pour tous les plugins et toutes les versions : un seul fichier mis en avant, l'installeur Windows (`<Nom>-Setup.exe`), sur la page fixe `dernier` et dans le tableau du README. Il demande le dossier VST3 et le retient. Les zips Mac, Linux et Windows restent sur la Release de la version, sans etre mis en avant.
-4. `python tools/droz.py vitrine` refait le tableau du README (plugins publies et en chantier) : a lancer apres chaque publication et quand un plugin apparait sur une branche.
+Une seule facon de faire, pour tous les plugins et toutes les versions :
+
+1. Monter `version` dans `plugins/<dossier>/plugin.json` et lancer `python tools/droz.py vitrine` (tableau du README).
+2. Fusionner la PR. La version part toute seule : installeur Windows, zips Mac et Linux.
+3. Un seul fichier est mis en avant : l'installeur Windows (`<Nom>-Setup.exe`), sur la page fixe `dernier` que pointe le README. Il demande le dossier VST3 et le retient. Les zips restent sur la Release de la version.
+
+Un nouveau plugin fusionne dans `main` est publie de la meme facon, a sa premiere fusion.
+Bitwig : si un plugin fait communiquer ses instances entre elles, son hebergement ne doit pas etre sur "Individually".
 
 ## Compiler chez soi (facultatif)
 

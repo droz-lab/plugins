@@ -1,7 +1,6 @@
 // Habillage commun des plugins Droz. La regle ecrite est dans docs/HABILLAGE.md, la planche dans docs/habillage.png.
-// Direction : celle de l'artwork Droz Recordz (Drive, dossier Charte Graphique) : fond ardoise bleu-noir,
-// logo blanc en capitales larges et espacees, coulees rouge-orange. Donc : sombre, texte blanc glace,
-// traits fins, et le rouge-orange comme seule couleur vive (valeurs, tete de lecture, etat actif).
+// Direction : la meme que le site drozrecordz.com. Fond presque noir, texte blanc casse, titres en Lexend Exa,
+// texte en Hanken Grotesk, logo Droz, et l'orange du site comme seule couleur vive (valeurs, tete de lecture, etat actif).
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -16,12 +15,13 @@ namespace droz::ui
 // Couleurs. Aucune autre couleur dans un plugin : si un besoin revient, il s'ajoute ici.
 namespace colours
 {
-inline const juce::Colour background { 0xff0b1219 }; // bleu-noir du fond de la toile
-inline const juce::Colour panel { 0xff1a2732 };      // ardoise sombre : cadres, menus, visuel
-inline const juce::Colour line { 0xff283c47 };       // ardoise claire : filets, pistes, etat eteint
-inline const juce::Colour text { 0xffedf3f6 };       // blanc glace du logo
-inline const juce::Colour dim { 0xff8fa1ad };        // libelles, texte secondaire
-inline const juce::Colour accent { 0xfff0431f };     // rouge-orange des coulees : la seule couleur vive
+// Memes valeurs que le site drozrecordz.com.
+inline const juce::Colour background { 0xff0e0f11 }; // fond du site
+inline const juce::Colour panel { 0xff22262b };      // cadres, menus, fond du visuel
+inline const juce::Colour line { 0xff3a4047 };       // filets, pistes, etat eteint
+inline const juce::Colour text { 0xffeceff1 };       // texte du site
+inline const juce::Colour dim { 0xff8e979f };        // libelles, texte secondaire
+inline const juce::Colour accent { 0xffff5b1f };     // orange du site : la seule couleur vive
 } // namespace colours
 
 //==============================================================================
@@ -40,31 +40,38 @@ inline constexpr float corner = 3.0f;  // arrondi des cadres
 } // namespace metrics
 
 //==============================================================================
-// Polices (SIL OFL, embarquees : meme rendu sur Windows, Mac et Linux).
+// Polices du site (SIL OFL, embarquees : meme rendu sur Windows, Mac et Linux).
 inline juce::Typeface::Ptr titleTypeface()
 {
-    static const auto face = juce::Typeface::createSystemTypefaceFor (DrozPolices::MichromaRegular_ttf,
-                                                                      DrozPolices::MichromaRegular_ttfSize);
+    static const auto face = juce::Typeface::createSystemTypefaceFor (DrozPolices::LexendExaSemiBold_ttf,
+                                                                      DrozPolices::LexendExaSemiBold_ttfSize);
     return face;
 }
 
-inline juce::Typeface::Ptr monoTypeface()
+inline juce::Typeface::Ptr bodyTypeface()
 {
-    static const auto face = juce::Typeface::createSystemTypefaceFor (DrozPolices::IBMPlexMonoRegular_ttf,
-                                                                      DrozPolices::IBMPlexMonoRegular_ttfSize);
+    static const auto face = juce::Typeface::createSystemTypefaceFor (DrozPolices::HankenGroteskMedium_ttf,
+                                                                      DrozPolices::HankenGroteskMedium_ttfSize);
     return face;
 }
 
-/** Michroma, capitales larges et espacees comme le logo. Titres et libelles courts, toujours avec upper(). */
+/** Lexend Exa, la police des titres du site. Titres et libelles courts, en capitales avec upper(). */
 inline juce::Font caps (float size)
 {
-    return juce::Font (juce::FontOptions (titleTypeface()).withHeight (size)).withExtraKerningFactor (0.14f);
+    return juce::Font (juce::FontOptions (titleTypeface()).withHeight (size)).withExtraKerningFactor (0.04f);
 }
 
-/** IBM Plex Mono. Valeurs, menus, textes : les chiffres ne bougent pas quand la valeur change. */
-inline juce::Font mono (float size)
+/** Hanken Grotesk, la police de texte du site. Valeurs, menus, textes. */
+inline juce::Font body (float size)
 {
-    return juce::Font (juce::FontOptions (monoTypeface()).withHeight (size));
+    return juce::Font (juce::FontOptions (bodyTypeface()).withHeight (size));
+}
+
+/** Logo Droz (blanc sur transparent), a teinter avec la couleur voulue. */
+inline juce::Image logo()
+{
+    static const auto image = juce::ImageCache::getFromMemory (DrozPolices::drozlogo_png, DrozPolices::drozlogo_pngSize);
+    return image;
 }
 
 /** Majuscules, accents compris (toUpperCase de JUCE laisse "e accent grave" en minuscule selon le systeme). */
@@ -87,7 +94,7 @@ inline float scaleFor (juce::Rectangle<int> bounds, int baseWidth, int baseHeigh
 }
 
 //==============================================================================
-/** En-tete commun : "DROZ" a gauche (souligne d'une coulee), nom du plugin au centre, version a droite.
+/** En-tete commun : logo Droz a gauche (souligne d'orange), nom du plugin au centre, version a droite.
     Renvoie la zone restante. Le nom se passe sans le prefixe "Droz ". */
 inline juce::Rectangle<int> drawHeader (juce::Graphics& g, juce::Rectangle<int> area, const juce::String& pluginName,
                                         const juce::String& version = {})
@@ -96,10 +103,13 @@ inline juce::Rectangle<int> drawHeader (juce::Graphics& g, juce::Rectangle<int> 
     const auto filet = header.removeFromBottom (1);
     const auto inner = header.reduced (metrics::margin, 0);
 
-    const auto logoFont = caps (11.0f);
-    g.setColour (colours::dim);
-    g.setFont (logoFont);
-    g.drawText ("DROZ", inner, juce::Justification::centredLeft);
+    // Logo Droz a gauche, teinte en blanc casse.
+    const auto image = logo();
+    const int logoHeight = 12;
+    const int logoWidth = image.isValid() ? juce::roundToInt ((float) logoHeight * (float) image.getWidth() / (float) image.getHeight()) : 0;
+    g.setColour (colours::text);
+    g.drawImage (image, inner.withWidth (logoWidth).withSizeKeepingCentre (logoWidth, logoHeight).toFloat(),
+                 juce::RectanglePlacement::centred, true);
 
     g.setColour (colours::text);
     g.setFont (caps (15.0f));
@@ -108,14 +118,14 @@ inline juce::Rectangle<int> drawHeader (juce::Graphics& g, juce::Rectangle<int> 
     if (version.isNotEmpty())
     {
         g.setColour (colours::dim);
-        g.setFont (mono (11.0f));
+        g.setFont (body (11.0f));
         g.drawText ("v" + version, inner, juce::Justification::centredRight);
     }
 
     g.setColour (colours::line);
     g.fillRect (filet);
     g.setColour (colours::accent);
-    g.fillRect (filet.withWidth (metrics::margin + juce::roundToInt (juce::GlyphArrangement::getStringWidth (logoFont, "DROZ"))));
+    g.fillRect (filet.withWidth (metrics::margin + logoWidth));
     return area;
 }
 
@@ -126,12 +136,12 @@ inline juce::Rectangle<int> drawFooter (juce::Graphics& g, juce::Rectangle<int> 
     g.setColour (colours::line);
     g.fillRect (footer.removeFromTop (1));
     g.setColour (colours::dim);
-    g.setFont (mono (11.0f));
+    g.setFont (body (11.0f));
     g.drawText (text, footer.reduced (metrics::margin, 0), juce::Justification::centredLeft, true);
     return area;
 }
 
-/** Cadre de section : fond ardoise, titre en capitales en haut a gauche. Renvoie l'interieur. */
+/** Cadre de section : fond sombre, titre en capitales en haut a gauche. Renvoie l'interieur. */
 inline juce::Rectangle<int> drawPanel (juce::Graphics& g, juce::Rectangle<int> area, const juce::String& title = {})
 {
     g.setColour (colours::panel);
@@ -187,7 +197,7 @@ public:
     }
 
     //==========================================================================
-    // Potard : arc fin, valeur en rouge-orange, repere blanc.
+    // Potard : arc fin, valeur en orange, repere blanc.
     void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
                            float position, float startAngle, float endAngle, juce::Slider& slider) override
     {
@@ -215,7 +225,7 @@ public:
         g.drawLine ({ base, tip }, metrics::stroke);
     }
 
-    // Curseur droit : piste fine, valeur en rouge-orange, poignee = un trait blanc.
+    // Curseur droit : piste fine, valeur en orange, poignee = un trait blanc.
     void drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos, float minSliderPos,
                            float maxSliderPos, juce::Slider::SliderStyle style, juce::Slider& slider) override
     {
@@ -259,7 +269,7 @@ public:
     }
 
     //==========================================================================
-    // Bouton : cadre fin. Allume ou enfonce : plein rouge-orange, texte sombre.
+    // Bouton : cadre fin. Allume ou enfonce : plein orange, texte sombre.
     void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour&, bool highlighted, bool down) override
     {
         const auto area = button.getLocalBounds().toFloat().reduced (0.5f);
@@ -287,7 +297,7 @@ public:
         g.drawText (upper (button.getButtonText()), button.getLocalBounds().reduced (6, 0), juce::Justification::centred, true);
     }
 
-    // Case : un carre. Allumee : plein rouge-orange.
+    // Case : un carre. Allumee : plein orange.
     void drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool) override
     {
         const float alpha = button.isEnabled() ? 1.0f : 0.35f;
@@ -304,12 +314,12 @@ public:
             g.drawRoundedRectangle (box, 2.0f, 1.5f);
         }
         g.setColour (colours::text.withMultipliedAlpha (alpha));
-        g.setFont (mono (13.0f));
+        g.setFont (body (13.0f));
         g.drawText (button.getButtonText(), area.withTrimmedLeft (8), juce::Justification::centredLeft, true);
     }
 
     //==========================================================================
-    // Menu deroulant : cadre ardoise, chevron fin.
+    // Menu deroulant : cadre sombre, chevron fin.
     void drawComboBox (juce::Graphics& g, int width, int height, bool, int, int, int, int, juce::ComboBox& box) override
     {
         const auto area = juce::Rectangle<int> (width, height).toFloat().reduced (0.5f);
@@ -338,9 +348,9 @@ public:
         }
     }
 
-    juce::Font getComboBoxFont (juce::ComboBox&) override { return mono (13.0f); }
-    juce::Font getPopupMenuFont() override { return mono (13.0f); }
-    juce::Font getLabelFont (juce::Label&) override { return mono (13.0f); }
+    juce::Font getComboBoxFont (juce::ComboBox&) override { return body (13.0f); }
+    juce::Font getPopupMenuFont() override { return body (13.0f); }
+    juce::Font getLabelFont (juce::Label&) override { return body (13.0f); }
 };
 
 //==============================================================================
@@ -376,8 +386,8 @@ private:
 };
 
 //==============================================================================
-/** Base du visuel anime d'un plugin : cadre ardoise, 30 images par seconde, a l'arret quand il est cache.
-    Le plugin derive et dessine dans draw(). Regles : traits fins, blanc et gris pour la matiere, rouge-orange
+/** Base du visuel anime d'un plugin : cadre sombre, 30 images par seconde, a l'arret quand il est cache.
+    Le plugin derive et dessine dans draw(). Regles : traits fins, blanc et gris pour la matiere, orange
     pour ce qui bouge ou joue (tete de lecture, crete). Aucune lecture bloquante : valeurs par std::atomic. */
 class Visual : public juce::Component, private juce::Timer
 {

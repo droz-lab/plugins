@@ -1,13 +1,14 @@
 # Habillage commun des interfaces (couleurs, polices, controles, en-tete). Depend de JUCE : en-tetes seulement.
 # Regle complete : docs/HABILLAGE.md.
 
-# Polices embarquees (SIL OFL, licences a cote des fichiers). Chemins absolus : juce_add_binary_data l'exige.
+# Polices du site drozrecordz.com (SIL OFL, licences a cote des fichiers) et logo Droz. Chemins absolus : juce_add_binary_data l'exige.
 juce_add_binary_data(droz_ui_polices
   NAMESPACE DrozPolices
   HEADER_NAME DrozPolices.h
   SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/polices/Michroma-Regular.ttf"
-    "${CMAKE_CURRENT_SOURCE_DIR}/polices/IBMPlexMono-Regular.ttf")
+    "${CMAKE_CURRENT_SOURCE_DIR}/polices/LexendExa-SemiBold.ttf"
+    "${CMAKE_CURRENT_SOURCE_DIR}/polices/HankenGrotesk-Medium.ttf"
+    "${CMAKE_CURRENT_SOURCE_DIR}/images/droz-logo.png")
 set_target_properties(droz_ui_polices PROPERTIES POSITION_INDEPENDENT_CODE ON FOLDER "libs")
 
 add_library(droz_ui INTERFACE)

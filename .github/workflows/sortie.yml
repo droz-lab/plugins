@@ -1,12 +1,17 @@
 name: Sortie
 
-# Publier une version durable d'un plugin, au choix :
-#   - onglet Actions > Sortie > Run workflow, en donnant le dossier du plugin (le plus simple) ;
-#   - pousser une etiquette <dossier>-v<version>, ex. spiralift-v0.2.0.
-# La version est celle de plugins/<dossier>/plugin.json. Les zips arrivent dans l'onglet Releases.
+# Publier un plugin. Trois facons, meme resultat :
+#   - fusionner dans main une PR qui monte "version" dans plugins/<dossier>/plugin.json (le cas normal :
+#     toute version presente dans main et pas encore publiee part toute seule) ;
+#   - onglet Actions > Sortie > Run workflow, en donnant le dossier du plugin ;
+#   - pousser une etiquette <dossier>-v<version>.
+# Resultat : une Release <dossier>-v<version> (installeur Windows, zips Mac, Linux, Windows)
+# et l'installeur Windows sur la page fixe "dernier", celle que pointe le README.
 
 on:
   push:
+    branches: [main]
+    paths: ["plugins/*/plugin.json"]
     tags: ["*-v[0-9]*"]
   workflow_dispatch:
     inputs:
@@ -17,52 +22,63 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sortie
+  cancel-in-progress: false
+
 jobs:
   lire:
-    name: Lecture de l'etiquette
+    name: Versions a publier
     runs-on: ubuntu-latest
     outputs:
-      dossier: ${{ steps.tag.outputs.dossier }}
-      tag: ${{ steps.tag.outputs.tag }}
+      dossiers: ${{ steps.choix.outputs.dossiers }}
     steps:
       - uses: actions/checkout@v4
-      - id: tag
+      - id: choix
         env:
           EVENEMENT: ${{ github.event_name }}
+          TYPE_REF: ${{ github.ref_type }}
           REF: ${{ github.ref_name }}
           DEMANDE: ${{ inputs.dossier }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          version_de() { python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$1"; }
+          dossiers=""
           if [ "$EVENEMENT" = "workflow_dispatch" ]; then
-            dossier="$DEMANDE"
-            if [ ! -f "plugins/$dossier/plugin.json" ]; then
-              echo "Pas de plugin dans plugins/$dossier"
+            if [ ! -f "plugins/$DEMANDE/plugin.json" ]; then
+              echo "Pas de plugin dans plugins/$DEMANDE"
               exit 1
             fi
-            version=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
-            tag="$dossier-v$version"
+            tag="$DEMANDE-v$(version_de "$DEMANDE")"
             if gh release view "$tag" > /dev/null 2>&1; then
-              echo "La version $tag existe deja : monter 'version' dans plugins/$dossier/plugin.json avant de publier."
+              echo "La version $tag existe deja : monter 'version' dans plugins/$DEMANDE/plugin.json avant de publier."
               exit 1
             fi
+            dossiers="$DEMANDE"
+          elif [ "$TYPE_REF" = "tag" ]; then
+            dossier="${REF%-v*}"
+            if [ "${REF##*-v}" != "$(version_de "$dossier")" ]; then
+              echo "L'etiquette $REF ne correspond pas a la version de plugins/$dossier/plugin.json : aligner les deux."
+              exit 1
+            fi
+            gh release view "$REF" > /dev/null 2>&1 || dossiers="$dossier"
           else
-            tag="$REF"
-            dossier="${tag%-v*}"
-            version="${tag##*-v}"
-            attendu=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
-            if [ "$version" != "$attendu" ]; then
-              echo "L'etiquette dit $version, plugin.json dit $attendu : aligner les deux."
-              exit 1
-            fi
+            # Fusion dans main : tout plugin dont la version n'a pas encore de Release.
+            for meta in plugins/*/plugin.json; do
+              dossier=$(basename "$(dirname "$meta")")
+              case "$dossier" in _*) continue ;; esac
+              gh release view "$dossier-v$(version_de "$dossier")" > /dev/null 2>&1 || dossiers="${dossiers:+$dossiers,}$dossier"
+            done
           fi
-          echo "dossier=$dossier" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "a publier : ${dossiers:-rien}"
+          echo "dossiers=$dossiers" >> "$GITHUB_OUTPUT"
 
   compiler:
     needs: lire
+    if: needs.lire.outputs.dossiers != ''
     uses: ./.github/workflows/compilation.yml
     with:
-      plugins: ${{ needs.lire.outputs.dossier }}
+      plugins: ${{ needs.lire.outputs.dossiers }}
       mac: true
 
   publier:
@@ -70,30 +86,38 @@ jobs:
     needs: [lire, compiler]
     runs-on: ubuntu-latest
     permissions:
-      contents: write # seulement pour creer la Release
+      contents: write # seulement pour creer les Releases
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: recu
-      - name: Release GitHub
+      - name: Releases GitHub
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.lire.outputs.tag }}
-          DOSSIER: ${{ needs.lire.outputs.dossier }}
+          DOSSIERS: ${{ needs.lire.outputs.dossiers }}
         run: |
-          notes="plugins/$DOSSIER/NOTES.md"
-          [ -f "$notes" ] || notes=README.md
-          # Cree aussi l'etiquette si elle n'existe pas encore (publication par le bouton).
-          gh release create "$TAG" recu/plugins-*/* recu/apercu/*.png --title "$TAG" --notes-file "$notes" --target "$GITHUB_SHA"
+          champ() { python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))[sys.argv[2]])" "$1" "$2"; }
+          for dossier in ${DOSSIERS//,/ }; do
+            nom=$(champ "$dossier" nom)
+            version=$(champ "$dossier" version)
+            fichier="${nom// /-}"
+            tag="$dossier-v$version"
+            notes="plugins/$dossier/NOTES.md"
+            [ -f "$notes" ] || notes=README.md
+            capture="recu/apercu/$dossier.png"
+            [ -f "$capture" ] || capture=""
+            # Cree aussi l'etiquette si elle n'existe pas encore.
+            gh release create "$tag" recu/plugins-*/"$fichier"-* $capture --title "$nom $version" --notes-file "$notes" --target "$GITHUB_SHA" --latest=false
 
-          # Page fixe "dernier" : toujours la derniere version publiee de chaque plugin, memes noms de fichiers.
-          if ! gh release view dernier > /dev/null 2>&1; then
-            gh release create dernier --title "Telecharger les plugins (dernieres versions)" --latest=false --target "$GITHUB_SHA" \
-              --notes "Un installeur Windows par plugin, toujours la derniere version. Double-clique sur le fichier telecharge. Windows previent que l'editeur est inconnu (nos plugins ne sont pas signes) : Informations complementaires, puis Executer quand meme. Mac, Linux et zips : voir le README."
-          fi
-          # Un seul fichier par plugin sur cette page : l'installeur Windows. Les zips restent sur la Release de la version.
-          gh release upload dernier recu/plugins-*/*-Setup.exe --clobber
+            # Page fixe "dernier" : un seul fichier par plugin, l'installeur Windows de sa derniere version.
+            if ! gh release view dernier > /dev/null 2>&1; then
+              gh release create dernier --title "Telecharger les plugins" --latest=false --target "$GITHUB_SHA" \
+                --notes "Un installeur Windows par plugin, toujours la derniere version. Mac, Linux et zips : voir le README."
+            fi
+            gh release upload dernier recu/plugins-*/"$fichier"-Setup.exe --clobber
+          done
+
           # Menage : on retire de la page tout ce qui n'est pas l'installeur d'un plugin present dans main.
           attendus=$(python3 -c "import json,glob; print(' '.join(json.load(open(f))['nom'].replace(' ','-')+'-Setup.exe' for f in glob.glob('plugins/*/plugin.json')))")
           for fichier in $(gh release view dernier --json assets --jq '.assets[].name'); do
