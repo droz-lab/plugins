@@ -1,6 +1,7 @@
 ; Installeur Windows commun a tous les plugins (Inno Setup 6).
 ; Lance par compilation.yml avec /DNom, /DVersion, /DSource, /DSortie, /DFichier.
-; Un double-clic : pose <Nom>.vst3 dans C:\Program Files\Common Files\VST3. Reinstaller remplace l'ancienne version.
+; Un double-clic : demande le dossier VST3 (par defaut C:\Program Files\Common Files\VST3) et y pose <Nom>.vst3.
+; Le dossier choisi est retenu pour tous les plugins Droz et toutes les versions. Reinstaller remplace l'ancienne version.
 
 #ifndef Nom
   #define Nom "Plugin"
@@ -24,8 +25,11 @@ AppName={#Nom}
 AppVersion={#Version}
 AppPublisher=Droz
 AppPublisherURL=https://github.com/droz-lab/plugins
-DefaultDirName={commoncf64}\VST3
-DisableDirPage=yes
+DefaultDirName={reg:HKLM\Software\DrozLab,DossierVST3|{commoncf64}\VST3}
+DisableDirPage=no
+AppendDefaultDirName=no
+DirExistsWarning=no
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
 DisableWelcomePage=yes
@@ -42,6 +46,15 @@ ShowLanguageDialog=no
 
 [Languages]
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
+
+[Messages]
+fr.SelectDirDesc=Dans quel dossier VST3 installer {#Nom} ?
+fr.SelectDirLabel3=Le plugin sera pose dans ce dossier. Garde celui qui est propose, sauf si ton DAW lit ses VST3 ailleurs.
+fr.SelectDirBrowseLabel=Clique sur Suivant pour installer. Parcourir : choisir un autre dossier, il sera retenu pour les prochains plugins Droz.
+
+[Registry]
+; Dossier retenu pour les prochains installeurs Droz.
+Root: HKLM; Subkey: "Software\DrozLab"; ValueType: string; ValueName: "DossierVST3"; ValueData: "{app}"
 
 [Files]
 Source: "{#Source}\*"; DestDir: "{app}\{#Nom}.vst3"; Flags: recursesubdirs createallsubdirs ignoreversion

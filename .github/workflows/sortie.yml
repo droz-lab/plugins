@@ -90,6 +90,15 @@ jobs:
           # Page fixe "dernier" : toujours la derniere version publiee de chaque plugin, memes noms de fichiers.
           if ! gh release view dernier > /dev/null 2>&1; then
             gh release create dernier --title "Telecharger les plugins (dernieres versions)" --latest=false --target "$GITHUB_SHA" \
-              --notes "Windows : telecharge le fichier -Setup.exe du plugin et double-clique. Windows previent que l'editeur est inconnu (nos plugins ne sont pas signes) : Informations complementaires, puis Executer quand meme. Mac : telecharge le -Mac.zip et suis le README, ou utilise la commande d'installation du README."
+              --notes "Un installeur Windows par plugin, toujours la derniere version. Double-clique sur le fichier telecharge. Windows previent que l'editeur est inconnu (nos plugins ne sont pas signes) : Informations complementaires, puis Executer quand meme. Mac, Linux et zips : voir le README."
           fi
-          gh release upload dernier recu/plugins-*/* --clobber
+          # Un seul fichier par plugin sur cette page : l'installeur Windows. Les zips restent sur la Release de la version.
+          gh release upload dernier recu/plugins-*/*-Setup.exe --clobber
+          # Menage : on retire de la page tout ce qui n'est pas l'installeur d'un plugin present dans main.
+          attendus=$(python3 -c "import json,glob; print(' '.join(json.load(open(f))['nom'].replace(' ','-')+'-Setup.exe' for f in glob.glob('plugins/*/plugin.json')))")
+          for fichier in $(gh release view dernier --json assets --jq '.assets[].name'); do
+            case " $attendus " in
+              *" $fichier "*) ;;
+              *) echo "retire de la page dernier : $fichier"; gh release delete-asset dernier "$fichier" --yes ;;
+            esac
+          done

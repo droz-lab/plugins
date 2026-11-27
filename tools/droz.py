@@ -181,28 +181,27 @@ def etiquettes() -> set[str]:
     return distantes or set(_git("tag").split())
 
 
-def _ligne(nom: str, lien: str, meta: dict, etat: str, windows: str, mac: str) -> str:
+def _ligne(nom: str, lien: str, meta: dict, etat: str, telecharger: str) -> str:
     description = re.sub(r"\s*\(migre[^)]*\)", "", str(meta.get("description", ""))).replace("|", "/").strip() or "-"
     auteur = {"yoy": "YoY", "zomban": "Zomban", "fx": "Fx", "equipe": "equipe"}.get(str(meta.get("auteur", "-")).lower(), meta.get("auteur", "-"))
-    return f"| [{nom}]({lien}) | {description} | {auteur} | {etat} | {windows} | {mac} |"
+    return f"| [{nom}]({lien}) | {description} | {auteur} | {etat} | {telecharger} |"
 
 
 def tableau_vitrine() -> str:
-    lignes = ["| Plugin | Ce qu'il fait | Par | Etat | Windows | Mac |", "|---|---|---|---|---|---|"]
+    lignes = ["| Plugin | Ce qu'il fait | Par | Etat | Telecharger |", "|---|---|---|---|---|"]
     publies = etiquettes()
     for dossier, m in metas().items():
         if dossier.startswith("_"):
             continue
         nom = str(m.get("nom"))
-        fichier = nom.replace(" ", "-")
-        if f"{dossier}-v{m.get('version')}" in publies:
-            base = f"{DEPOT}/releases/download/dernier/{fichier}"
-            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, f"v{m.get('version')}",
-                                 f"[Installeur]({base}-Setup.exe)", f"[Zip]({base}-Mac.zip)"))
+        # Deja publie au moins une fois : le lien fixe "dernier" sert toujours la derniere version.
+        if any(e.startswith(f"{dossier}-v") for e in publies):
+            lien = f"{DEPOT}/releases/download/dernier/{nom.replace(' ', '-')}-Setup.exe"
+            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, "publie", f"[Installer (Windows)]({lien})"))
         else:
-            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, f"v{m.get('version')}, pas encore publie", "-", "-"))
+            lignes.append(_ligne(nom, f"plugins/{dossier}/NOTES.md", m, "pas encore publie", "-"))
     for dossier, (branche, m) in sorted(plugins_en_chantier().items(), key=lambda x: str(x[1][1].get("nom")).lower()):
-        lignes.append(_ligne(str(m.get("nom")), f"{DEPOT}/tree/{branche}/plugins/{dossier}", m, "en chantier", "-", "-"))
+        lignes.append(_ligne(str(m.get("nom")), f"{DEPOT}/tree/{branche}/plugins/{dossier}", m, "en chantier", "-"))
     return "\n".join(lignes)
 
 
