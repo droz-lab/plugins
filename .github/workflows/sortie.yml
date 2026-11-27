@@ -1,0 +1,59 @@
+name: Sortie
+
+# Publier une version durable d'un plugin : pousser une etiquette <dossier>-v<version>, ex. spiralift-v0.2.0.
+# La version doit etre celle de plugins/<dossier>/plugin.json. Les zips arrivent dans l'onglet Releases.
+
+on:
+  push:
+    tags: ["*-v[0-9]*"]
+
+permissions:
+  contents: read
+
+jobs:
+  lire:
+    name: Lecture de l'etiquette
+    runs-on: ubuntu-latest
+    outputs:
+      dossier: ${{ steps.tag.outputs.dossier }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          dossier="${TAG%-v*}"
+          version="${TAG##*-v}"
+          attendu=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
+          if [ "$version" != "$attendu" ]; then
+            echo "L'etiquette dit $version, plugin.json dit $attendu : aligner les deux."
+            exit 1
+          fi
+          echo "dossier=$dossier" >> "$GITHUB_OUTPUT"
+
+  compiler:
+    needs: lire
+    uses: ./.github/workflows/compilation.yml
+    with:
+      plugins: ${{ needs.lire.outputs.dossier }}
+
+  publier:
+    name: Publication
+    needs: [lire, compiler]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # seulement pour creer la Release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: recu
+      - name: Release GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          DOSSIER: ${{ needs.lire.outputs.dossier }}
+        run: |
+          notes="plugins/$DOSSIER/NOTES.md"
+          [ -f "$notes" ] || notes=README.md
+          gh release create "$TAG" recu/plugins-*/*.zip recu/apercu/*.png --title "$TAG" --notes-file "$notes"

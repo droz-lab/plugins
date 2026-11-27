@@ -1,0 +1,8 @@
+build*/
+dist/
+apercu/
+.DS_Store
+.vs/
+.idea/
+.vscode/
+__pycache__/

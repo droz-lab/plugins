@@ -1,0 +1,9 @@
+{
+  "nom": "Droz Modele",
+  "cible": "DrozModele",
+  "code": "Dmod",
+  "type": "effet",
+  "version": "0.1.0",
+  "auteur": "equipe",
+  "description": "Modele de depart : un gain lisse. Sert aussi a verifier que la chaine compile."
+}

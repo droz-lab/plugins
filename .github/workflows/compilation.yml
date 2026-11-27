@@ -1,0 +1,177 @@
+name: Compilation
+
+# Compile, teste et valide les plugins touches, sur Linux, Windows et Mac.
+# Les zips sont dans l'onglet Actions > le run > Artifacts (30 jours). Versions durables : voir sortie.yml.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      plugins:
+        description: "Dossiers a compiler, separes par des virgules (vide = tous)"
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      plugins:
+        type: string
+        required: false
+        default: ""
+
+concurrency:
+  group: compilation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PLUGINVAL: v1.0.4
+
+jobs:
+  preparer:
+    name: Registre et briques communes
+    runs-on: ubuntu-latest
+    outputs:
+      liste: ${{ steps.choix.outputs.liste }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Registre des plugins (codes uniques)
+        run: python3 tools/droz.py verifier
+      - name: Tests de libs/ (sans JUCE)
+        run: |
+          cmake -S . -B build-libs -DDROZ_BUILD_PLUGINS=OFF
+          cmake --build build-libs
+          ctest --test-dir build-libs --output-on-failure
+      - name: Plugins a compiler
+        id: choix
+        env:
+          DEMANDE: ${{ inputs.plugins }}
+          EVENEMENT: ${{ github.event_name }}
+          BASE_PR: ${{ github.base_ref }}
+          AVANT: ${{ github.event.before }}
+        run: |
+          if [ -n "$DEMANDE" ]; then
+            liste=$(echo "$DEMANDE" | tr ',' ';' | tr -d ' ')
+          else
+            if [ "$EVENEMENT" = "pull_request" ]; then base="origin/$BASE_PR"
+            elif [ "$EVENEMENT" = "push" ]; then base="$AVANT"
+            else base="aucune"; fi
+            liste=$(python3 tools/droz.py modifies "$base" | python3 -c "import json,sys; print(';'.join(json.load(sys.stdin)))")
+          fi
+          echo "liste=$liste" >> "$GITHUB_OUTPUT"
+          echo "Plugins a compiler : ${liste:-aucun}" >> "$GITHUB_STEP_SUMMARY"
+
+  plugins:
+    name: ${{ matrix.nom }}
+    needs: preparer
+    if: needs.preparer.outputs.liste != ''
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { nom: Linux, os: ubuntu-latest, pluginval: pluginval_Linux.zip, binaire: ./pluginval }
+          - { nom: Windows, os: windows-latest, pluginval: pluginval_Windows.zip, binaire: ./pluginval.exe }
+          - { nom: Mac, os: macos-latest, pluginval: pluginval_macOS.zip, binaire: ./pluginval.app/Contents/MacOS/pluginval }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependances Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libasound2-dev libx11-dev libxext-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libxrender-dev libxcomposite-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Configuration
+        env:
+          LISTE: ${{ needs.preparer.outputs.liste }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DDROZ_PLUGINS=$LISTE"
+
+      - name: Compilation
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Tests communs (son fini, silence, etat, clics, interface)
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then lance="xvfb-run -a"; else lance=""; fi
+          $lance ctest --test-dir build -C Release --output-on-failure
+
+      - name: pluginval
+        run: |
+          curl -fsSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/$PLUGINVAL/${{ matrix.pluginval }}"
+          if [ "$RUNNER_OS" = "Windows" ]; then 7z x -y pluginval.zip > /dev/null; else unzip -q -o pluginval.zip; fi
+          if [ "$RUNNER_OS" = "Linux" ]; then lance="xvfb-run -a"; else lance=""; fi
+          trouve=0
+          while IFS= read -r vst; do
+            trouve=1
+            echo "::group::pluginval $vst"
+            $lance "${{ matrix.binaire }}" --strictness-level 5 --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"
+            echo "::endgroup::"
+          done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
+          if [ "$trouve" = 0 ]; then echo "aucun .vst3 produit"; exit 1; fi
+
+      - name: Captures de l'interface et rendus des boucles
+        if: runner.os == 'Linux'
+        env:
+          LISTE: ${{ needs.preparer.outputs.liste }}
+        run: |
+          mkdir -p apercu
+          for dossier in ${LISTE//;/ }; do
+            cible=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['cible'])" "$dossier")
+            outil=$(find build -type f -name "${cible}_outil" | head -n 1)
+            xvfb-run -a "$outil" capture "apercu/$dossier.png"
+            "$outil" params > "apercu/$dossier-parametres.txt"
+            for boucle in "plugins/$dossier"/boucles/*.wav; do
+              [ -e "$boucle" ] || continue
+              "$outil" rendu "$boucle" "apercu/$dossier-$(basename "$boucle")"
+            done
+          done
+
+      - name: Zips
+        run: |
+          mkdir -p dist
+          while IFS= read -r vst; do
+            nom=$(basename "$vst" .vst3)
+            zip="$PWD/dist/${nom// /-}-${{ matrix.nom }}.zip"
+            if [ "$RUNNER_OS" = "macOS" ]; then ditto -c -k --keepParent "$vst" "$zip"
+            elif [ "$RUNNER_OS" = "Windows" ]; then (cd "$(dirname "$vst")" && 7z a -tzip "$(cygpath -w "$zip")" "$(basename "$vst")" > /dev/null)
+            else (cd "$(dirname "$vst")" && zip -q -r "$zip" "$(basename "$vst")"); fi
+          done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugins-${{ matrix.nom }}
+          path: dist/*.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: apercu
+          path: apercu/
+          retention-days: 30
+
+  verdict:
+    name: Verdict
+    # Un seul controle a exiger dans la protection de la branche main.
+    needs: [preparer, plugins]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          PREPARER: ${{ needs.preparer.result }}
+          PLUGINS: ${{ needs.plugins.result }}
+        run: |
+          echo "preparer=$PREPARER plugins=$PLUGINS"
+          [ "$PREPARER" = "success" ] || exit 1
+          [ "$PLUGINS" = "success" ] || [ "$PLUGINS" = "skipped" ] || exit 1
