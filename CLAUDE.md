@@ -5,7 +5,7 @@ Depot commun a plusieurs personnes et plusieurs Claude. Ces regles gardent le de
 ## Debut de session
 
 1. `python tools/droz.py liste` : les plugins et leurs responsables.
-2. Lis `docs/PIEGES.md` et le `NOTES.md` du plugin concerne.
+2. Lis `docs/PIEGES.md`, `docs/HABILLAGE.md` et le `NOTES.md` du plugin concerne.
 3. Demande a la personne son prenom et son plugin si ce n'est pas clair. Ne touche pas au plugin d'un autre sans qu'il l'ait demande.
 
 ## Creer un plugin
@@ -32,7 +32,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 
 1. Les tests communs passent (`ctest`, ou le run Actions) : sortie finie, retour au silence, etat sauvegarde et recharge, pas de clic, interface qui s'ouvre et se rouvre.
 2. pluginval passe (niveau 5).
-3. Tu as produit une capture de l'interface (regarde-la toi-meme, puis envoie-la : la personne est peut-etre sur son telephone) et au moins un rendu WAV sec + traite, et tu dis quoi ecouter et ou le telecharger.
+3. Tu as produit une capture de l'interface (regarde-la toi-meme, compare-la a `docs/habillage.png`, puis envoie-la : la personne est peut-etre sur son telephone) et au moins un rendu WAV sec + traite, et tu dis quoi ecouter et ou le telecharger.
 4. `plugins/<dossier>/NOTES.md` est a jour.
 
 ## Regles de code
@@ -49,7 +49,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 - Si le plugin peut monter en niveau (distorsion, feedback, resonance) : limiteur de securite en sortie, et aucune valeur non finie ne sort.
 - Interface : info-bulle sur chaque controle, double-clic = valeur par defaut, polices et images libres de droits (SIL OFL) via `juce_add_binary_data`.
 - Une fonction a la fois, finie, plutot que plusieurs a moitie.
-- Habillage : regle dans `docs/HABILLAGE.md`, briques dans `droz::ui` (`libs/droz_ui`). Aucune couleur ni police hors de `droz::ui` : le rouge-orange `colours::accent` est la seule couleur vive.
+- Habillage Droz obligatoire, pour tout le monde : tout plugin, nouveau ou mis a jour, suit `docs/HABILLAGE.md` et se monte avec `droz::ui` (`libs/droz_ui`). Aucune couleur, police ou controle dessine hors de `droz::ui`. Si la personne demande autre chose, propose-le comme evolution de l'habillage commun (PR `commun:`), pas comme exception dans son plugin. Quand tu modifies un plugin pas encore a la charte, tu le mets a la charte dans la meme PR.
 - Mac : pas compile sur les PR. Si le plugin touche a du code propre a un systeme, lancer Actions > Compilation > Run workflow avec la case "mac" avant de fusionner.
 
 ## Memoire

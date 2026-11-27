@@ -41,7 +41,7 @@ Pour refaire ce tableau apres un changement de `plugin.json` : `python tools/dro
 2. Colle ceci en remplissant les `<...>` :
 
 ```
-Lis CLAUDE.md puis docs/PIEGES.md.
+Lis CLAUDE.md, docs/PIEGES.md et docs/HABILLAGE.md.
 Je veux creer un plugin : <nom>. C'est un <effet | instrument>.
 Le son voulu : <deux ou trois phrases, des references si tu en as>.
 Je suis <prenom>, niveau en code : <aucun | un peu | a l'aise>. DAW : <Ableton | Bitwig>, sur <Windows | Mac>.
@@ -92,7 +92,8 @@ A la main :
 2. Chacun est chez lui dans son dossier de plugin. Tout ce qui est commun passe par une PR relue par un autre membre.
 3. L'identite d'un plugin sorti ne change plus : `code`, `cible`, identifiants des parametres. Sinon les projets des autres cassent.
 4. Une lecon qui servira aux autres : une ligne dans `docs/PIEGES.md`. Une idee ou un souci : onglet **Issues**.
-5. Pas de secret, pas de sample sous droits, pas de binaire lourd dans le depot.
+5. Tous les plugins portent l'habillage Droz (`docs/HABILLAGE.md`), a la creation comme a chaque mise a jour. Une envie differente se propose pour tout le monde, pas pour un seul plugin.
+6. Pas de secret, pas de sample sous droits, pas de binaire lourd dans le depot.
 
 ## Publier une version
 

@@ -6,6 +6,15 @@ Tout est dans `libs/droz_ui/include/droz/ui.h` (`droz::ui`). La planche ci-desso
 
 ![Planche de l'habillage](habillage.png)
 
+## La regle
+
+L'habillage Droz est obligatoire pour tous les plugins du depot, quel que soit l'auteur et quel que soit son Claude : a la creation, et a chaque mise a jour.
+
+- Un plugin se monte avec `droz::ui`. Pas de couleur, de police ni de controle dessine en dehors.
+- Un plugin plus ancien, pas encore a la charte, y passe a sa prochaine mise a jour.
+- Une envie differente (autre couleur, autre police, nouveau controle) se propose pour tout le monde dans une PR `commun:`. Pas d'exception dans un seul plugin.
+- `python tools/droz.py verifier` liste les plugins qui s'en ecartent.
+
 ## D'ou ca vient
 
 L'artwork Droz Recordz (Drive DROZ RECORDZ > Communication > Charte Graphique) : une toile ardoise bleu-noir, de l'ecume blanche, des coulees rouge-orange, et le logo blanc en capitales larges et espacees.
