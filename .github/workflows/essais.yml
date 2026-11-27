@@ -58,7 +58,8 @@ jobs:
           $build = $env:COMMIT.Substring(0, 7)
           $paquets = Get-ChildItem brut -Recurse -Directory -Filter *.vst3 | Where-Object { Test-Path (Join-Path $_.FullName "Contents\x86_64-win") }
           foreach ($vst in $paquets) {
-            $nom = $vst.BaseName
+            # Pas BaseName : pour un dossier, PowerShell y laisse l'extension ("Droz Courbes.vst3").
+            $nom = [System.IO.Path]::GetFileNameWithoutExtension($vst.Name)
             $fichier = ($nom -replace " ", "-") + "-Setup"
             if (Test-Path "recu\$fichier.exe") { continue }
             if ($nom -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,60}$') { Write-Host "nom refuse : $nom"; continue }
