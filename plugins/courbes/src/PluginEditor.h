@@ -40,13 +40,25 @@ class BoutonOnglet final : public juce::Button
 {
 public:
     explicit BoutonOnglet (int index);
-    void setInfos (bool actif, int cc, bool evolution, bool visible);
+    void setInfos (bool actif, int cc, bool evolution, bool visible, float valeur);
     void paintButton (juce::Graphics&, bool survol, bool appui) override;
 
 private:
     int index;
     bool actif = false, evolution = false, visible = true;
+    float valeur = -1.0f; // derniere valeur envoyee (0..1), -1 : rien
     int cc = 0;
+};
+
+/** Logo DROZ COURBES : le O en planete avec son anneau, des etoiles, un insecte sur une courbe. */
+class LogoDroz final : public juce::Component
+{
+public:
+    void setCouleur (juce::Colour c) { couleur = c; repaint(); }
+    void paint (juce::Graphics&) override;
+
+private:
+    juce::Colour couleur { 0xffeea63a };
 };
 
 /** Fleche Annuler (gauche) ou Retablir (droite), dessinee. */
@@ -61,11 +73,17 @@ private:
 };
 
 /** Petite vue d'une courbe, sans edition (courbe jouee, prochaine courbe). */
-class MiniVue final : public juce::Component
+class MiniVue final : public juce::Component, public juce::SettableTooltipClient
 {
 public:
     void setCourbe (const courbes::Courbe* c, juce::Colour couleur, const juce::String& titre);
     void paint (juce::Graphics&) override;
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (onClic && ! vide && e.getDistanceFromDragStart() < 4)
+            onClic (e.mods);
+    }
+    std::function<void (const juce::ModifierKeys&)> onClic;
 
 private:
     courbes::Courbe courbe;
@@ -273,9 +291,12 @@ private:
 
     // Outils.
     BoutonFleche boutonAnnuler { false }, boutonRetablir { true };
-    juce::TextButton boutonCrayon, boutonVisible, boutonInsectes, boutonPanneau, boutonInverser, boutonRetourner, boutonDoubler, boutonMoitie,
-        boutonCopier, boutonColler, boutonActif, boutonMulti;
-    std::unique_ptr<AttacheBouton> attacheActif;
+    juce::TextButton boutonCrayon, boutonInsectes, boutonPanneau, boutonInverser, boutonRetourner, boutonDoubler, boutonMoitie,
+        boutonCopier, boutonColler, boutonMulti, toutDemute, toutDesolo;
+    // Dans chaque onglet : Visible, Solo, Mute.
+    std::array<juce::TextButton, nombreOnglets> boutonsVisible, boutonsSolo, boutonsMute;
+    std::array<std::unique_ptr<AttacheBouton>, nombreOnglets> attachesSolo, attachesMute;
+    LogoDroz logo;
 
     VueCourbe vue;
     juce::Label aide;
@@ -302,7 +323,13 @@ private:
     std::unique_ptr<AttacheSlider> attacheCc, attacheCanal;
 
     // Evolution.
-    juce::TextButton evolution, lie, nouvelleSuite, suitePrecedente, revenirSeed, garderSeed, menuSeeds, aucunSolo;
+    juce::TextButton evolution, lie, nouvelleSuite, suitePrecedente, revenirSeed, garderSeed, menuSeeds, aucunSolo, fullRandom,
+        cadenas, seedDepart;
+    std::unique_ptr<AttacheBouton> attacheCadenas, attacheSeedDepart;
+    Reglette fondu;
+    juce::Label titreHistorique;
+    std::array<MiniVue, PluginProcessor::Lecture::tailleHistorique> historiqueVues;
+    PluginProcessor::Lecture derniereLecture;
     juce::ComboBox mesuresEvo;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attacheMesures;
     std::unique_ptr<AttacheBouton> attacheEvolution, attacheLie;

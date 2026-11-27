@@ -197,16 +197,73 @@ BoutonOnglet::BoutonOnglet (int i) : juce::Button ("Onglet " + juce::String (i +
     setClickingTogglesState (false);
 }
 
-void BoutonOnglet::setInfos (bool a, int c, bool e, bool v)
+void BoutonOnglet::setInfos (bool a, int c, bool e, bool v, float val)
 {
-    if (a != actif || c != cc || e != evolution || v != visible)
+    if (a != actif || c != cc || e != evolution || v != visible || std::abs (val - valeur) > 0.004f)
     {
         actif = a;
         cc = c;
         evolution = e;
         visible = v;
+        valeur = val;
         repaint();
     }
+}
+
+void LogoDroz::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat();
+    const float h = r.getHeight();
+    // Quelques etoiles.
+    g.setColour (palette::texteDoux.withAlpha (0.8f));
+    for (auto p : { juce::Point<float> (0.02f, 0.15f), juce::Point<float> (0.47f, 0.08f), juce::Point<float> (0.93f, 0.2f),
+                    juce::Point<float> (0.6f, 0.9f), juce::Point<float> (0.33f, 0.95f) })
+        g.fillEllipse (juce::Rectangle<float> (2.0f, 2.0f).withCentre ({ r.getX() + p.x * r.getWidth(), r.getY() + p.y * h }));
+
+    juce::Font gras (juce::FontOptions (h * 0.78f, juce::Font::bold));
+    g.setFont (gras);
+    g.setColour (couleur);
+    float x = r.getX() + 6.0f;
+    const auto lettre = [&] (const juce::String& l)
+    {
+        const float w = juce::GlyphArrangement::getStringWidth (gras, l);
+        g.drawText (l, juce::Rectangle<float> (x, r.getY(), w + 2.0f, h), juce::Justification::centredLeft);
+        x += w;
+    };
+    lettre ("DR");
+    // Le O : une planete avec son anneau.
+    const float d = h * 0.56f;
+    x += d * 0.25f;
+    const juce::Point<float> c (x + d * 0.5f, r.getCentreY());
+    g.fillEllipse (juce::Rectangle<float> (d, d).withCentre (c));
+    g.setColour (palette::fond);
+    g.fillEllipse (juce::Rectangle<float> (d * 0.32f, d * 0.32f).withCentre (c.translated (-d * 0.12f, -d * 0.1f)));
+    g.setColour (couleur);
+    juce::Path anneau;
+    anneau.addCentredArc (c.x, c.y, d * 0.95f, d * 0.28f, -0.35f, 0.0f, juce::MathConstants<float>::twoPi, true);
+    g.strokePath (anneau, juce::PathStrokeType (1.6f));
+    x += d * 1.25f;
+    lettre ("Z");
+
+    // COURBES, plus fin, avec un petit insecte qui marche sur une vague.
+    x += 10.0f;
+    juce::Font fin (juce::FontOptions (h * 0.46f));
+    g.setFont (fin);
+    g.setColour (palette::texte);
+    const juce::String mot ("COURBES");
+    const float wMot = juce::GlyphArrangement::getStringWidth (fin, mot) + 8.0f;
+    g.drawText (mot, juce::Rectangle<float> (x, r.getY(), wMot, h * 0.62f), juce::Justification::bottomLeft);
+    juce::Path vague;
+    const float y0 = r.getY() + h * 0.82f;
+    vague.startNewSubPath (x, y0);
+    for (int i = 1; i <= 30; ++i)
+    {
+        const float u = static_cast<float> (i) / 30.0f;
+        vague.lineTo (x + u * wMot, y0 - std::sin (u * 6.2831853f) * h * 0.06f);
+    }
+    g.setColour (couleur.withAlpha (0.7f));
+    g.strokePath (vague, juce::PathStrokeType (1.2f));
+    dessinerInsecte (g, 0, juce::Rectangle<float> (h * 0.42f, h * 0.42f).withCentre ({ x + wMot * 0.78f, y0 - h * 0.14f }), couleur);
 }
 
 BoutonFleche::BoutonFleche (bool versLaDroite) : juce::Button (versLaDroite ? "Retablir" : "Annuler"), droite (versLaDroite) {}
@@ -249,6 +306,8 @@ void BoutonOnglet::paintButton (juce::Graphics& g, bool survol, bool)
     g.drawRoundedRectangle (r, 7.0f, choisi ? 2.0f : 1.0f);
 
     auto contenu = r.reduced (6.0f, 4.0f);
+    contenu.removeFromRight (22.0f); // colonne V / S / M
+    contenu.removeFromBottom (6.0f); // mini-barre
     const auto icone = contenu.removeFromLeft (contenu.getHeight());
     dessinerInsecte (g, index, icone, actif ? couleur : couleur.withAlpha (0.35f));
     if (! visible)
@@ -262,11 +321,21 @@ void BoutonOnglet::paintButton (juce::Graphics& g, bool survol, bool)
     g.drawText (juce::String (index + 1), contenu.removeFromTop (contenu.getHeight() * 0.55f), juce::Justification::centredLeft);
     g.setFont (juce::FontOptions (11.0f));
     g.setColour (palette::texteDoux);
-    g.drawText (actif ? "CC " + juce::String (cc) : T ("éteint"), contenu, juce::Justification::centredLeft);
+    g.drawText (actif ? "CC " + juce::String (cc) : T ("muet"), contenu, juce::Justification::centredLeft);
+    if (valeur >= 0.0f)
+    {
+        // Mini-barre : la valeur envoyee en ce moment.
+        auto barre = r.reduced (8.0f, 0.0f).removeFromBottom (5.0f).translated (0.0f, -3.0f);
+        barre.setRight (getWidth() - 26.0f);
+        g.setColour (palette::grilleForte);
+        g.fillRoundedRectangle (barre, 1.5f);
+        g.setColour (couleur);
+        g.fillRoundedRectangle (barre.withWidth (barre.getWidth() * valeur), 1.5f);
+    }
     if (evolution && actif)
     {
         g.setColour (couleur);
-        g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre ({ r.getRight() - 9.0f, r.getY() + 9.0f }));
+        g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre ({ r.getRight() - 32.0f, r.getY() + 9.0f }));
     }
 }
 
@@ -288,7 +357,8 @@ void MiniVue::paint (juce::Graphics& g)
     g.fillRoundedRectangle (r, 5.0f);
     g.setColour (palette::texteDoux);
     g.setFont (juce::FontOptions (11.0f));
-    g.drawText (titre, r.removeFromTop (15.0f).reduced (6.0f, 0.0f), juce::Justification::centredLeft);
+    if (titre.isNotEmpty())
+        g.drawText (titre, r.removeFromTop (15.0f).reduced (6.0f, 0.0f), juce::Justification::centredLeft);
     const auto z = r.reduced (6.0f, 4.0f);
     if (vide)
     {
@@ -1153,9 +1223,9 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     setLookAndFeel (&style);
     setWantsKeyboardFocus (true);
 
-    titre.setText ("DROZ COURBES", juce::dontSendNotification);
+    titre.setText ("DROZ COURBES", juce::dontSendNotification); // remplace par le logo dessine
+    titre.setVisible (false);
     titre.setFont (juce::FontOptions (20.0f, juce::Font::bold));
-    addAndMakeVisible (titre);
     version.setText ("v" JucePlugin_VersionString, juce::dontSendNotification);
     version.setFont (juce::FontOptions (12.0f));
     version.setColour (juce::Label::textColourId, palette::texteDoux);
@@ -1228,19 +1298,6 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (boutonRetablir);
     preparerBascule (boutonCrayon, T ("Crayon"), T ("Dessine la courbe à main levée. Les points sont ensuite simplifiés automatiquement."));
     boutonCrayon.onClick = [this] { vue.setCrayon (boutonCrayon.getToggleState()); };
-    boutonActif.onClick = [this]
-    {
-        // Allumer un onglet le rend aussi visible (on peut ensuite le masquer avec "Visible").
-        if (boutonActif.getToggleState())
-            processor.visible[static_cast<size_t> (onglet)] = true;
-        majCalques();
-    };
-    preparerBascule (boutonVisible, T ("Visible"), T ("Afficher cet onglet dans « Toutes les courbes »."));
-    boutonVisible.onClick = [this]
-    {
-        processor.visible[static_cast<size_t> (onglet)] = boutonVisible.getToggleState();
-        majCalques();
-    };
     preparerBouton (boutonInverser, T ("Inverser"), T ("Retourne la courbe de haut en bas."),
                     [this] { transformer ([] (courbes::Courbe& c) { courbes::inverser (c); return true; }); });
     preparerBouton (boutonRetourner, T ("Retourner"), T ("Joue la courbe à l'envers (de droite à gauche)."),
@@ -1255,7 +1312,51 @@ PluginEditor::PluginEditor (PluginProcessor& p)
                         if (pressePapier != nullptr)
                             appliquer (*pressePapier, true);
                     });
-    preparerBascule (boutonActif, T ("Actif"), T ("Allumé : cet onglet envoie son CC. Éteint : il ne sort rien."));
+    // Visible / Solo / Mute dans chaque onglet.
+    for (int t = 0; t < nombreOnglets; ++t)
+    {
+        auto& v = boutonsVisible[static_cast<size_t> (t)];
+        preparerBascule (v, "V", T ("Visible : afficher cette courbe dans « Toutes les courbes »."));
+        v.setToggleState (processor.visible[static_cast<size_t> (t)].load(), juce::dontSendNotification);
+        v.onClick = [this, t]
+        {
+            processor.visible[static_cast<size_t> (t)] = boutonsVisible[static_cast<size_t> (t)].getToggleState();
+            majCalques();
+        };
+        auto& so = boutonsSolo[static_cast<size_t> (t)];
+        preparerBascule (so, "S", T ("Solo : seuls les onglets en solo envoient leur CC."));
+        so.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffe8d44d));
+        attachesSolo[static_cast<size_t> (t)] = std::make_unique<AttacheBouton> (processor.apvts, PluginProcessor::id (t, "solo"), so);
+        auto& mu = boutonsMute[static_cast<size_t> (t)];
+        preparerBascule (mu, "M", T ("Mute : cet onglet n'envoie plus son CC."));
+        mu.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffef6f6c));
+        attachesMute[static_cast<size_t> (t)] = std::make_unique<AttacheBouton> (processor.apvts, PluginProcessor::id (t, "mute"), mu);
+        mu.onClick = [this, t]
+        {
+            // Dé-muter un onglet le rend aussi visible (on peut ensuite le masquer avec V).
+            if (! boutonsMute[static_cast<size_t> (t)].getToggleState())
+            {
+                processor.visible[static_cast<size_t> (t)] = true;
+                boutonsVisible[static_cast<size_t> (t)].setToggleState (true, juce::dontSendNotification);
+                majCalques();
+            }
+        };
+        for (auto* b : { &v, &so, &mu })
+            b->setConnectedEdges (juce::Button::ConnectedOnTop | juce::Button::ConnectedOnBottom);
+    }
+    preparerBouton (toutDemute, T ("Dé-mute"), T ("Enlève tous les mutes."), [this]
+                    {
+                        for (int t = 0; t < nombreOnglets; ++t)
+                            if (auto* q = processor.param (t, "mute"))
+                                q->setValueNotifyingHost (0.0f);
+                    });
+    preparerBouton (toutDesolo, T ("Dé-solo"), T ("Enlève tous les solos."), [this]
+                    {
+                        for (int t = 0; t < nombreOnglets; ++t)
+                            if (auto* q = processor.param (t, "solo"))
+                                q->setValueNotifyingHost (0.0f);
+                    });
+    addAndMakeVisible (logo);
     preparerBascule (boutonMulti, T ("Toutes les courbes"), T ("Affiche toutes les courbes allumées en même temps. Leurs points se sélectionnent et se déplacent ensemble."));
     boutonMulti.onClick = [this]
     {
@@ -1367,8 +1468,41 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     preparerBascule (evolution, T ("Évolution"), T ("Allumé : à chaque tirage, la courbe peut rester, revenir à ta courbe, varier ou changer de famille."));
     preparerBascule (lie, T ("Lié aux autres"), T ("Allumé : cet onglet suit les réglages communs et bouge avec les autres onglets liés. Éteint : ses propres réglages."));
     preparerReglette (coherence, T ("Cohérence"), T ("À quel point cet onglet suit les décisions communes (même moment, même famille). 100 % = toujours, 0 % = jamais. Chaque onglet garde sa propre variante."), 48);
+    preparerBascule (cadenas, T ("Cadenas"), T ("Fige la courbe de cet onglet : l'évolution ne la change plus (les autres onglets continuent)."));
+    cadenas.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffef6f6c));
+    preparerBascule (seedDepart, T ("Seed à chaque lecture"), T ("Allumé : à chaque fois que tu lances la lecture, l'évolution repart de la seed (même suite à chaque fois)."));
+    attacheSeedDepart = std::make_unique<AttacheBouton> (processor.apvts, "seed_depart", seedDepart);
+    preparerReglette (fondu, T ("Fondu"), T ("Durée du passage en douceur d'une courbe à la suivante, en % d'un cycle. 0 = changement d'un coup."), 52);
+    preparerNom (titreHistorique, T ("Historique (clic : reprendre · Maj+clic : garder comme seed)"));
+    for (int i = 0; i < PluginProcessor::Lecture::tailleHistorique; ++i)
+    {
+        auto& h = historiqueVues[static_cast<size_t> (i)];
+        h.setTooltip (T ("Une courbe déjà jouée. Clic : la reprendre. Maj+clic : en faire la seed."));
+        h.onClic = [this, i] (const juce::ModifierKeys& mods)
+        {
+            if (i >= derniereLecture.nbHistorique)
+                return;
+            PluginProcessor::Seed sd;
+            sd.courbe = derniereLecture.historique[static_cast<size_t> (i)];
+            sd.famille = derniereLecture.famillesHistorique[static_cast<size_t> (i)];
+            sd.reglage = derniereLecture.reglagesHistorique[static_cast<size_t> (i)];
+            if (mods.isShiftDown())
+            {
+                processor.setSeed (onglet, sd);
+                majEvolution (true);
+                return;
+            }
+            Etat e;
+            e.courbe = sd.courbe;
+            e.famille = sd.famille;
+            e.membre = -1;
+            e.reglage = sd.reglage;
+            appliquer (e, true);
+        };
+        addAndMakeVisible (h);
+    }
     preparerNom (nomSuite, {});
-    preparerBouton (nouvelleSuite, T ("Nouvelle"), T ("Change tous les tirages au sort de l'évolution. Une suite est toujours la même au même endroit du morceau."), [this]
+    preparerBouton (nouvelleSuite, T ("Suite"), T ("Numéro de la suite de tirages. Clic : nouvelle suite (change tous les tirages au sort de l'évolution)."), [this]
                     {
                         suitesPrecedentes.push_back (processor.getGraine());
                         processor.setGraine (static_cast<uint32_t> (juce::Random::getSystemRandom().nextInt (1 << 30)) + 1u);
@@ -1396,6 +1530,12 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     preparerBouton (garderSeed, T ("Garder comme seed"), T ("La courbe en cours devient la seed : à chaque relecture, l'évolution repart d'elle."),
                     [this] { processor.setSeed (onglet, seedActuelle()); majEvolution (true); });
     preparerBouton (menuSeeds, T ("Seeds"), T ("Stocker la seed, ou reprendre une seed stockée."), [this] { menuDesSeeds(); });
+    preparerBouton (fullRandom, T ("Full random"), T ("Remet toutes les familles à chances égales (et enlève les solos)."), [this]
+                    {
+                        for (int f = 0; f < courbes::nombreFamilles; ++f)
+                            processor.setSolo (onglet, evoCommune(), f, false);
+                        reglerFamilles ([] (int) { return 50.0f; });
+                    });
     preparerBouton (aucunSolo, T ("Aucun solo"), T ("Enlève tous les solos : les chances reviennent aux sliders."), [this]
                     {
                         for (int f = 0; f < courbes::nombreFamilles; ++f)
@@ -1461,7 +1601,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         };
         addAndMakeVisible (l.slider);
     }
-    preparerNom (titreFamilles, T ("Chances par famille (pour « Changer »)"));
+    preparerNom (titreFamilles, T ("Chances par famille"));
     titreFamilles.setColour (juce::Label::textColourId, palette::texte);
     for (int g = 0; g < courbes::nombreGroupes; ++g)
     {
@@ -1504,7 +1644,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     const int width = processor.editorWidth.load(), height = processor.editorHeight.load();
     lierOnglet (processor.ongletAffiche.load());
     setResizable (true, true);
-    setResizeLimits (1100, 760, 2400, 1600);
+    setResizeLimits (1200, 880, 2400, 1600);
     setSize (width, height);
     ready = true;
     timerCallback(); // premier affichage complet, sans attendre le minuteur
@@ -1587,8 +1727,10 @@ void PluginEditor::lierOnglet (int t)
     attacheGrilleTernaire = std::make_unique<AttacheBouton> (processor.apvts, id ("grille_ternaire"), grilleTernaire);
     attacheDepart.reset();
     attacheDepart = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, id ("depart"), depart);
-    attacheActif.reset();
-    attacheActif = std::make_unique<AttacheBouton> (processor.apvts, id ("actif"), boutonActif);
+    attacheCadenas.reset();
+    attacheCadenas = std::make_unique<AttacheBouton> (processor.apvts, id ("verrou"), cadenas);
+    attacher (fondu, "fondu");
+    logo.setCouleur (couleur);
     attacheEvolution.reset();
     attacheEvolution = std::make_unique<AttacheBouton> (processor.apvts, id ("evolution"), evolution);
     attacheLie.reset();
@@ -2085,7 +2227,7 @@ void PluginEditor::majEvolution (bool forcer)
     const bool allumee = processor.valeur (onglet, "evolution") > 0.5f;
     titreReglages.setText (c ? T ("Réglages communs (tous les onglets liés)") : T ("Réglages de cet onglet seulement"), juce::dontSendNotification);
     coherence.slider.setEnabled (c);
-    nomSuite.setText (T ("Suite ") + juce::String (processor.getGraine() % 10000u), juce::dontSendNotification);
+    nouvelleSuite.setButtonText (T ("Suite ") + juce::String (processor.getGraine() % 10000u));
     suitePrecedente.setEnabled (! suitesPrecedentes.empty());
 
     // Valeurs des sliders (sauf celui qu'on tient), et vraies chances en %.
@@ -2160,6 +2302,10 @@ void PluginEditor::timerCallback()
         versionLectureConnue = processor.getVersionLecture (onglet);
         PluginProcessor::Lecture l;
         processor.getLecture (onglet, l);
+        derniereLecture = l;
+        for (int i = 0; i < PluginProcessor::Lecture::tailleHistorique; ++i)
+            historiqueVues[static_cast<size_t> (i)].setCourbe (i < l.nbHistorique ? &l.historique[static_cast<size_t> (i)] : nullptr,
+                                                               i == 0 ? couleur : couleur.withAlpha (0.6f), {});
         // L'evolution a change la courbe : elle remplace la courbe affichee (et devient celle qu'on modifie).
         // Seulement si l'audio a deja pris nos dernieres modifications, et pas pendant qu'on modifie.
         if (allumee && ! vue.enTrainDeModifier() && l.versionCourbe >= processor.getVersionCourbe (onglet))
@@ -2207,7 +2353,6 @@ void PluginEditor::timerCallback()
             vue.setCourbe (t, l.jouee);
     }
     relancer.setEnabled (courbes::groupeFamille (famille) >= 2);
-    boutonVisible.setToggleState (processor.visible[static_cast<size_t> (onglet)].load(), juce::dontSendNotification);
 
     if ((processor.valeur (onglet, "ternaire") > 0.5f) != ternaireConnu)
         majLongueurs();
@@ -2215,8 +2360,12 @@ void PluginEditor::timerCallback()
         majGrille();
 
     for (int t = 0; t < nombreOnglets; ++t)
-        onglets[t]->setInfos (processor.valeur (t, "actif") > 0.5f, juce::roundToInt (processor.valeur (t, "cc")),
-                              processor.valeur (t, "evolution") > 0.5f, processor.visible[static_cast<size_t> (t)].load());
+    {
+        const int dernier = processor.ccAffiche[static_cast<size_t> (t)].load();
+        onglets[t]->setInfos (processor.envoie (t), juce::roundToInt (processor.valeur (t, "cc")),
+                              processor.valeur (t, "evolution") > 0.5f, processor.visible[static_cast<size_t> (t)].load(),
+                              dernier < 0 ? -1.0f : static_cast<float> (dernier) / 127.0f);
+    }
 
     majCalques();
     for (int t = 0; t < nombreOnglets; ++t)
@@ -2258,19 +2407,29 @@ void PluginEditor::resized()
 
     auto area = getLocalBounds().reduced (14);
 
-    // Barre d'onglets.
+    // Barre d'onglets : logo, reglages globaux, 8 onglets avec Visible / Solo / Mute.
     {
-        auto barre = area.removeFromTop (48);
-        auto gauche = barre.removeFromLeft (236);
-        titre.setBounds (gauche.removeFromTop (26));
+        auto barre = area.removeFromTop (58);
+        auto gauche = barre.removeFromLeft (330);
+        logo.setBounds (gauche.removeFromTop (32));
         gauche.removeFromTop (2);
-        version.setBounds (gauche.removeFromLeft (48));
-        boutonInsectes.setBounds (gauche.removeFromLeft (84).reduced (2, 0));
-        boutonPanneau.setBounds (gauche.removeFromLeft (92).reduced (2, 0));
+        version.setBounds (gauche.removeFromLeft (44));
+        boutonInsectes.setBounds (gauche.removeFromLeft (72).reduced (2, 0));
+        boutonPanneau.setBounds (gauche.removeFromLeft (78).reduced (2, 0));
+        toutDemute.setBounds (gauche.removeFromLeft (68).reduced (2, 0));
+        toutDesolo.setBounds (gauche.reduced (2, 0));
         barre.removeFromLeft (6);
         const int w = barre.getWidth() / nombreOnglets;
-        for (auto* b : onglets)
-            b->setBounds (barre.removeFromLeft (w).reduced (3, 0));
+        for (int t = 0; t < nombreOnglets; ++t)
+        {
+            auto carte = barre.removeFromLeft (w).reduced (3, 0);
+            onglets[t]->setBounds (carte);
+            auto colonne = carte.removeFromRight (22).reduced (2, 3);
+            const int h = colonne.getHeight() / 3;
+            boutonsVisible[static_cast<size_t> (t)].setBounds (colonne.removeFromTop (h));
+            boutonsSolo[static_cast<size_t> (t)].setBounds (colonne.removeFromTop (h));
+            boutonsMute[static_cast<size_t> (t)].setBounds (colonne);
+        }
     }
     area.removeFromTop (10);
 
@@ -2279,11 +2438,14 @@ void PluginEditor::resized()
     for (auto* c : std::initializer_list<juce::Component*> { &evolution, &nomSuite, &nouvelleSuite, &suitePrecedente, &vueJouee, &vueProchaine,
                                                              &revenirSeed, &garderSeed, &menuSeeds, &lie, &coherence.slider, &coherence.nom,
                                                              &titreReglages, &styles[0], &styles[1], &styles[2], &rythme, &cycles, &nomCycles,
-                                                             &mesuresEvo, &titreIssues, &titreFamilles, &aucunSolo })
+                                                             &mesuresEvo, &titreIssues, &titreFamilles, &aucunSolo, &fullRandom,
+                                                             &cadenas, &seedDepart, &fondu.slider, &fondu.nom, &titreHistorique })
         c->setVisible (panneau);
     for (auto& l : issues)
         for (auto* c : std::initializer_list<juce::Component*> { &l.nom, &l.pourcent, &l.slider })
             c->setVisible (panneau);
+    for (auto& h : historiqueVues)
+        h.setVisible (panneau);
     for (auto& l : poids)
         for (auto* c : std::initializer_list<juce::Component*> { &l.nom, &l.pourcent, &l.slider, &l.seule })
             c->setVisible (panneau);
@@ -2299,12 +2461,14 @@ void PluginEditor::resized()
         area.removeFromRight (14);
         auto e = zoneEvolution.reduced (12, 10);
         auto ligne = e.removeFromTop (28);
-        evolution.setBounds (ligne.removeFromLeft (100));
-        ligne.removeFromLeft (8);
+        evolution.setBounds (ligne.removeFromLeft (96));
+        ligne.removeFromLeft (4);
+        cadenas.setBounds (ligne.removeFromLeft (76));
+        ligne.removeFromLeft (6);
         suitePrecedente.setBounds (ligne.removeFromRight (28));
         ligne.removeFromRight (4);
-        nouvelleSuite.setBounds (ligne.removeFromRight (84));
-        nomSuite.setBounds (ligne);
+        nouvelleSuite.setBounds (ligne);
+        nomSuite.setVisible (false);
         e.removeFromTop (6);
         ligne = e.removeFromTop (60);
         vueJouee.setBounds (ligne.removeFromLeft (ligne.getWidth() / 2 - 3));
@@ -2317,7 +2481,20 @@ void PluginEditor::resized()
         garderSeed.setBounds (ligne.removeFromLeft (124));
         ligne.removeFromLeft (4);
         menuSeeds.setBounds (ligne);
-        e.removeFromTop (8);
+        e.removeFromTop (4);
+        ligne = e.removeFromTop (24);
+        seedDepart.setBounds (ligne.removeFromLeft (150));
+        ligne.removeFromLeft (8);
+        placer (fondu, ligne, true, 48);
+        e.removeFromTop (4);
+        titreHistorique.setBounds (e.removeFromTop (16));
+        ligne = e.removeFromTop (28);
+        {
+            const int w = ligne.getWidth() / PluginProcessor::Lecture::tailleHistorique;
+            for (auto& h : historiqueVues)
+                h.setBounds (ligne.removeFromLeft (w).reduced (1, 0));
+        }
+        e.removeFromTop (6);
         ligne = e.removeFromTop (26);
         lie.setBounds (ligne.removeFromLeft (110));
         ligne.removeFromLeft (8);
@@ -2349,7 +2526,9 @@ void PluginEditor::resized()
         }
         e.removeFromTop (6);
         ligne = e.removeFromTop (20);
-        aucunSolo.setBounds (ligne.removeFromRight (86).reduced (0, 1));
+        aucunSolo.setBounds (ligne.removeFromRight (78).reduced (0, 1));
+        ligne.removeFromRight (4);
+        fullRandom.setBounds (ligne.removeFromRight (84).reduced (0, 1));
         titreFamilles.setBounds (ligne);
         const int h = juce::jlimit (14, 21, e.getHeight() / (courbes::nombreFamilles + courbes::nombreGroupes));
         for (int g = 0; g < courbes::nombreGroupes; ++g)
@@ -2422,10 +2601,6 @@ void PluginEditor::resized()
             b->setBounds (ligne.removeFromLeft (66));
             ligne.removeFromLeft (4);
         }
-        boutonActif.setBounds (ligne.removeFromRight (64));
-        ligne.removeFromRight (4);
-        boutonVisible.setBounds (ligne.removeFromRight (70));
-        ligne.removeFromRight (4);
         boutonMulti.setBounds (ligne.removeFromRight (130));
     }
 

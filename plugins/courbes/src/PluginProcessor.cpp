@@ -82,8 +82,8 @@ float defautEvo (int champ)
 //==============================================================================
 const char* PluginProcessor::nomParametreOnglet (int champ)
 {
-    static const char* noms[nombreChamps] = { "actif", "longueur", "ternaire", "grille", "grille_ternaire", "phase", "cc", "canal",
-                                              "min", "max", "lissage", "swing", "depart", "evolution", "lie", "coherence" };
+    static const char* noms[nombreChamps] = { "mute", "solo", "longueur", "ternaire", "grille", "grille_ternaire", "phase", "cc", "canal",
+                                              "min", "max", "lissage", "swing", "depart", "evolution", "lie", "coherence", "fondu", "verrou" };
     return noms[juce::jlimit (0, nombreChamps - 1, champ)];
 }
 
@@ -188,6 +188,7 @@ PluginProcessor::PluginProcessor()
         evoCommun[static_cast<size_t> (c)] = apvts.getRawParameterValue (idEvoCommun (c));
     pEcoute = apvts.getRawParameterValue ("ecoute_on");
     pRythme = apvts.getRawParameterValue ("evol_rythme");
+    pSeedDepart = apvts.getRawParameterValue ("seed_depart");
     pMesures = apvts.getRawParameterValue ("evol_mesures");
 
     for (int t = 0; t < nombreOnglets; ++t)
@@ -245,10 +246,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
             layout.add (std::make_unique<Float> (juce::ParameterID { id (t, base), 1 }, nom (n),
                                                  juce::NormalisableRange<float> (0.0f, maxi, 0.1f), defaut, Attr().withLabel ("%")));
         };
-        bascule ("actif", "Actif", t == 0);
+        bascule ("mute", "Mute", t != 0); // au depart, seul l'onglet 1 envoie son CC
+        bascule ("solo", "Solo", false);
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { id (t, "longueur"), 1 }, nom ("Longueur"),
                                                                   nomsLongueurs, longueurParDefaut));
-        bascule ("ternaire", "Longueurs ternaires", true);
+        bascule ("ternaire", "Longueurs ternaires", false);
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { id (t, "grille"), 1 }, nom ("Grille"), nomsGrilles, 2));
         bascule ("grille_ternaire", "Grille ternaire", false);
         pourcent ("phase", "Decalage", 100.0f, 0.0f);
@@ -264,6 +266,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
         bascule ("evolution", "Evolution", false);
         bascule ("lie", "Evolution liee", true);
         pourcent ("coherence", "Coherence", 100.0f, 70.0f);
+        pourcent ("fondu", "Fondu", 200.0f, 50.0f); // duree du passage d'une courbe a la suivante, en % d'un cycle
+        bascule ("verrou", "Cadenas", false);
     }
 
     layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "evol_rythme", 1 }, "Evolution : rythme",
@@ -274,6 +278,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
             noms.add (m.first);
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "evol_mesures", 1 }, "Evolution : tous les", noms, 2));
     }
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "seed_depart", 1 }, "Repartir de la seed a chaque lecture",
+                                                              juce::StringArray { "Non", "Oui" }, 0));
     layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "ecoute_on", 1 }, "Ecoute",
                                                               juce::StringArray { "Non", "Oui" }, 0));
 
@@ -332,13 +338,13 @@ bool PluginProcessor::getSolo (int t, bool communs, int f) const
                    : soloPropre[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))][static_cast<size_t> (f)].load();
 }
 
-void PluginProcessor::setSolo (int t, bool communs, int f, bool solo)
+void PluginProcessor::setSolo (int t, bool communs, int f, bool enSolo)
 {
     f = juce::jlimit (0, courbes::nombreFamilles - 1, f);
     if (communs)
-        soloCommun[static_cast<size_t> (f)] = solo;
+        soloCommun[static_cast<size_t> (f)] = enSolo;
     else
-        soloPropre[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))][static_cast<size_t> (f)] = solo;
+        soloPropre[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))][static_cast<size_t> (f)] = enSolo;
 }
 
 courbes::Evolution PluginProcessor::lireEvolution (int t, bool communs, int& cycles) const noexcept
@@ -359,8 +365,8 @@ courbes::Evolution PluginProcessor::lireEvolution (int t, bool communs, int& cyc
         unSolo = unSolo || (communs ? soloCommun[static_cast<size_t> (f)].load() : soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)].load());
     for (int f = 0; f < courbes::nombreFamilles; ++f)
     {
-        const bool solo = communs ? soloCommun[static_cast<size_t> (f)].load() : soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)].load();
-        e.poids[static_cast<size_t> (f)] = unSolo ? (solo ? 1.0f : 0.0f) : lit (evo::poids0 + f);
+        const bool enSolo = communs ? soloCommun[static_cast<size_t> (f)].load() : soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)].load();
+        e.poids[static_cast<size_t> (f)] = unSolo ? (enSolo ? 1.0f : 0.0f) : lit (evo::poids0 + f);
     }
     cycles = juce::jmax (1, juce::roundToInt (lit (evo::cycles)));
     return e;
@@ -389,6 +395,9 @@ void PluginProcessor::prepareToPlay (double sampleRate, int)
         v.sortie.snap (v.bas.current() + (v.haut.current() - v.bas.current()) * v.jouee.valeur (v.decalage.current()));
         v.valeur = v.sortie.current();
         v.dernierCycle = std::numeric_limits<int64_t>::min();
+        v.dernierePeriode = std::numeric_limits<int64_t>::min();
+        v.iterations = v.changements = 0;
+        v.fondu = 1.0;
         v.dernierCc = v.numero = v.canal = -1; // renvoyer la valeur au redemarrage
         v.compteurEnvoi = 0;
         v.aPublier = true;
@@ -401,40 +410,50 @@ bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
 }
 
-void PluginProcessor::preparerProchaine (int t, int64_t apres, double cycle, double npm) noexcept
+bool PluginProcessor::envoie (int t) const noexcept
+{
+    bool unSolo = false;
+    for (int k = 0; k < nombreOnglets; ++k)
+        unSolo = unSolo || lire (k, solo) > 0.5f;
+    return unSolo ? lire (t, solo) > 0.5f : lire (t, mute) < 0.5f;
+}
+
+/** Tire la prochaine courbe de l'onglet. Elle est affichee tout de suite et jouee au prochain changement. */
+void PluginProcessor::preparerProchaine (int t, double cycle, double npm, double temps, double positionMesures) noexcept
 {
     auto& v = voix[static_cast<size_t> (t)];
     const bool lieAuxAutres = lire (t, lie) > 0.5f;
     int n = 1;
     const auto e = lireEvolution (t, lieAuxAutres, n);
-    int64_t m = 0;
+
+    // Dans combien de temps tombe le prochain changement (pour l'affichage et le tirage commun).
+    double noiresAvant = 0.0;
     if (pRythme->load() > 0.5f)
     {
-        // Toutes les N mesures, pour toutes les courbes : premier debut de cycle a partir de la prochaine
-        // frontiere de N mesures.
         const auto& liste = mesuresEvolution();
         const int index = juce::jlimit (0, static_cast<int> (liste.size()) - 1, juce::roundToInt (pMesures->load()));
-        const double bloc = liste[static_cast<size_t> (index)].second * npm;
-        const double debutCycle = static_cast<double> (apres) * cycle;
-        const double frontiere = (std::floor (debutCycle / bloc + 1.0e-9) + 1.0) * bloc;
-        m = static_cast<int64_t> (std::ceil (frontiere / cycle - 1.0e-9));
-        if (m <= apres)
-            m = apres + 1;
+        const double bloc = liste[static_cast<size_t> (index)].second;
+        const double reste = bloc - std::fmod (juce::jmax (0.0, positionMesures), bloc);
+        noiresAvant = reste * npm;
+        v.cyclesAvant = juce::jmax (1, static_cast<int> (std::ceil (noiresAvant / cycle - 1.0e-6)));
     }
     else
-        m = (apres >= 0 ? apres / n : (apres - n + 1) / n) * n + n; // prochain multiple de n apres `apres`
-    v.cycleProchaine = m;
+    {
+        v.cyclesAvant = static_cast<int> (n - (v.iterations % n));
+        noiresAvant = static_cast<double> (v.cyclesAvant) * cycle;
+    }
 
-    // Tirage propre a l'onglet (seme par onglet et numero de cycle) : meme endroit, meme suite.
+    // Tirage propre a l'onglet : seme par la graine et le numero du changement (meme suite a chaque lecture
+    // depuis la seed, quelle que soit la facon dont le DAW boucle).
     const uint32_t graine = graineEvolution.load (std::memory_order_relaxed);
-    courbes::Hasard propre (melanger (graine ^ (0x51ED2700u + static_cast<uint32_t> (t) * 0x9E3779B9u), static_cast<uint64_t> (m)));
+    courbes::Hasard propre (melanger (graine ^ (0x51ED2700u + static_cast<uint32_t> (t) * 0x9E3779B9u), static_cast<uint64_t> (v.changements + 1)));
     auto issue = courbes::tirerIssue (e, propre);
     int f = -1;
     if (lieAuxAutres)
     {
-        // Tirage commun, seme par la mesure ou tombe le changement : les onglets lies decident ensemble,
-        // meme avec des longueurs differentes. La coherence dit a quel point chacun suit cette decision.
-        const auto mesure = static_cast<int64_t> (std::floor (static_cast<double> (m) * cycle / npm + 1.0e-9));
+        // Tirage commun, seme par la mesure (du temps joue) ou tombe le changement : les onglets lies decident
+        // ensemble, meme avec des longueurs differentes. La coherence dit a quel point chacun le suit.
+        const auto mesure = static_cast<int64_t> (std::floor ((temps + noiresAvant) / npm + 1.0e-6));
         courbes::Hasard commun (melanger (graine, static_cast<uint64_t> (mesure)));
         const auto issueCommune = courbes::tirerIssue (e, commun);
         const int familleCommune = courbes::tirerFamille (e, -1, commun);
@@ -468,26 +487,56 @@ void PluginProcessor::preparerProchaine (int t, int64_t apres, double cycle, dou
             v.prochaineEstLaBase = true;
             break;
         case courbes::Issue::varier:
-            v.fProchaine = v.fJouee;
-            v.rProchaine = courbes::perturber (v.rJouee, e.intensite, propre);
-            courbes::generer (v.fProchaine, v.rProchaine, v.prochaine);
-            break;
         case courbes::Issue::changer:
-            v.fProchaine = f;
-            v.rProchaine = courbes::perturber (courbes::membre (f, courbes::choix (propre.suivant(), courbes::membresParFamille)), e.intensite, propre);
-            courbes::generer (v.fProchaine, v.rProchaine, v.prochaine);
+            // Une variante (meme famille) ou une autre famille. Si le tirage redonne exactement la courbe en
+            // cours (familles tres "carrees"), on retire, avec de plus en plus d'ecart : "varier" doit varier.
+            for (int essai = 0; essai < 6; ++essai)
+            {
+                const float ecart = juce::jmin (1.0f, e.intensite + 0.2f * static_cast<float> (essai));
+                if (issue == courbes::Issue::varier)
+                {
+                    v.fProchaine = v.fJouee;
+                    v.rProchaine = courbes::perturber (v.rJouee, juce::jmax (ecart, essai > 0 ? 0.3f : 0.0f), propre);
+                }
+                else
+                {
+                    v.fProchaine = f;
+                    v.rProchaine = courbes::perturber (courbes::membre (f, courbes::choix (propre.suivant(), courbes::membresParFamille)), ecart, propre);
+                }
+                courbes::generer (v.fProchaine, v.rProchaine, v.prochaine);
+                if (! v.prochaine.memeForme (v.jouee))
+                    break;
+            }
             break;
     }
     v.prochaineValide = true;
     v.aPublier = true;
 }
 
-void PluginProcessor::surCycle (int t, int64_t cycle, bool suite, double cycleN, double npm) noexcept
+void PluginProcessor::repartirDeLaSeed (int t) noexcept
 {
     auto& v = voix[static_cast<size_t> (t)];
-    if (lire (t, evolution) < 0.5f)
+    v.jouee = v.base;
+    v.rJouee = v.rBase;
+    v.fJouee = v.fBase;
+    v.joueeEstLaBase = true;
+    v.prochaineValide = false;
+    v.iterations = v.changements = 0;
+    v.dernierePeriode = std::numeric_limits<int64_t>::min();
+    v.fondu = 1.0;
+    v.reprise = true;
+    v.compteurEnvoi = 0;
+    v.dernierCc = -1;
+    v.aPublier = true;
+}
+
+/** Debut d'un nouveau cycle de la courbe (en avancant, en bouclant ou apres un saut). */
+void PluginProcessor::surCycle (int t, double p, bool saut, double cycleN, double npm, double temps) noexcept
+{
+    auto& v = voix[static_cast<size_t> (t)];
+    if (lire (t, evolution) < 0.5f || lire (t, verrou) > 0.5f)
     {
-        // Evolution eteinte : on garde la courbe en cours telle quelle.
+        // Evolution eteinte ou courbe figee (cadenas) : on garde la courbe en cours.
         if (v.prochaineValide)
         {
             v.prochaineValide = false;
@@ -496,26 +545,66 @@ void PluginProcessor::surCycle (int t, int64_t cycle, bool suite, double cycleN,
         return;
     }
 
-    if (! suite)
+    // Est-ce un moment de changement ? (Jamais au premier cycle d'une lecture : la courbe en cours joue d'abord.)
+    const bool premier = v.reprise;
+    v.reprise = false;
+    const double positionMesures = p * cycleN / npm; // ou on en est, en mesures du DAW
+    bool changement = false;
+    if (pRythme->load() > 0.5f)
     {
-        // Debut de lecture ou saut dans le temps : on repart de la seed,
-        // pour que chaque lecture depuis le meme endroit donne la meme suite.
-        v.jouee = v.base;
-        v.rJouee = v.rBase;
-        v.fJouee = v.fBase;
-        v.joueeEstLaBase = true;
-        v.prochaineValide = false;
+        // Toutes les N mesures : on change a chaque fois qu'on entre dans une nouvelle tranche de N mesures
+        // (en avancant ou quand le DAW boucle).
+        const auto& liste = mesuresEvolution();
+        const int index = juce::jlimit (0, static_cast<int> (liste.size()) - 1, juce::roundToInt (pMesures->load()));
+        const double bloc = liste[static_cast<size_t> (index)].second;
+        const auto periode = static_cast<int64_t> (std::floor (positionMesures / bloc + 1.0e-6));
+        // Nouvelle tranche, ou le DAW reboucle au debut d'une tranche (boucle de N mesures pile).
+        const bool debutDeTranche = std::fmod (positionMesures + 1.0e-6, bloc) < 1.0e-3;
+        changement = ! premier && v.dernierePeriode != std::numeric_limits<int64_t>::min()
+                     && (periode != v.dernierePeriode || (saut && debutDeTranche));
+        v.dernierePeriode = periode;
     }
-    else if (v.prochaineValide && cycle >= v.cycleProchaine)
+    else
     {
+        // Chaque iteration : tous les N cycles joues, quelle que soit la longueur.
+        int n = 1;
+        lireEvolution (t, lire (t, lie) > 0.5f, n);
+        if (! premier)
+            ++v.iterations;
+        changement = ! premier && v.prochaineValide && v.iterations % n == 0;
+    }
+
+    if (changement && v.prochaineValide)
+    {
+        // La courbe tiree devient la courbe jouee, avec un fondu depuis l'ancienne.
+        v.ancienne = v.jouee;
+        v.fondu = lire (t, fondu) > 0.0f ? 0.0 : 1.0;
         v.jouee = v.prochaine;
         v.rJouee = v.rProchaine;
         v.fJouee = v.fProchaine;
         v.joueeEstLaBase = v.prochaineEstLaBase;
+        ++v.changements;
+
+        // Historique : la nouvelle courbe en tete.
+        for (int i = Lecture::tailleHistorique - 1; i > 0; --i)
+        {
+            v.historique[static_cast<size_t> (i)] = v.historique[static_cast<size_t> (i - 1)];
+            v.famillesHistorique[static_cast<size_t> (i)] = v.famillesHistorique[static_cast<size_t> (i - 1)];
+            v.reglagesHistorique[static_cast<size_t> (i)] = v.reglagesHistorique[static_cast<size_t> (i - 1)];
+        }
+        v.historique[0] = v.jouee;
+        v.famillesHistorique[0] = v.fJouee;
+        v.reglagesHistorique[0] = v.rJouee;
+        v.nbHistorique = juce::jmin (Lecture::tailleHistorique, v.nbHistorique + 1);
         v.prochaineValide = false;
     }
-    if (! v.prochaineValide)
-        preparerProchaine (t, cycle, cycleN, npm);
+    if (! v.prochaineValide || changement)
+        preparerProchaine (t, cycleN, npm, temps, positionMesures);
+    else
+    {
+        // Pas de changement : on met juste a jour le compte a rebours affiche.
+        v.cyclesAvant = juce::jmax (1, v.cyclesAvant - 1);
+    }
     v.aPublier = true;
 }
 
@@ -532,12 +621,16 @@ void PluginProcessor::publier (int t) noexcept
     l.versionCourbe = v.versionAudio;
     l.joueeEstLaBase = v.joueeEstLaBase;
     l.prochaineValide = v.prochaineValide;
+    l.cyclesAvant = v.cyclesAvant;
     if (v.prochaineValide)
     {
         l.prochaine = v.prochaine;
         l.familleProchaine = v.fProchaine;
-        l.cyclesAvant = static_cast<int> (juce::jlimit<int64_t> (0, 1000, v.cycleProchaine - (v.dernierCycle == std::numeric_limits<int64_t>::min() ? 0 : v.dernierCycle)));
     }
+    l.historique = v.historique;
+    l.famillesHistorique = v.famillesHistorique;
+    l.reglagesHistorique = v.reglagesHistorique;
+    l.nbHistorique = v.nbHistorique;
     v.aPublier = false;
     versionLecture[static_cast<size_t> (t)].fetch_add (1, std::memory_order_release);
 }
@@ -555,7 +648,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         if (meta.getMessage().isNoteOn() && nbNotes < static_cast<int> (notes.size()))
             notes[static_cast<size_t> (nbNotes++)] = meta.samplePosition;
 
-    // Position dans le temps : celle du DAW quand il joue, sinon une horloge interne au meme tempo.
+    // Position dans le temps : celle du DAW. A l'arret, le plugin ne joue pas.
     double bpm = 120.0, ppq = 0.0, npm = 4.0;
     bool joue = false;
     if (auto* head = getPlayHead())
@@ -577,27 +670,46 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     const int ongletEcoute = juce::jlimit (0, nombreOnglets - 1, ongletAffiche.load (std::memory_order_relaxed));
     ecoute.setTarget (pEcoute->load() > 0.5f ? 1.0f : 0.0f);
 
+    // Debut de lecture : option "repartir de la seed a chaque lecture".
+    if (joue && ! etaitEnLecture && pSeedDepart->load() > 0.5f)
+    {
+        tempsNoires = 0.0; // l'horloge commune repart aussi : meme suite a chaque lecture
+        for (int t = 0; t < nombreOnglets; ++t)
+            repartirDeLaSeed (t);
+    }
+    const bool parMesures = pRythme->load() > 0.5f;
+    double blocMesures = 1.0;
+    {
+        const auto& liste = mesuresEvolution();
+        blocMesures = liste[static_cast<size_t> (juce::jlimit (0, static_cast<int> (liste.size()) - 1, juce::roundToInt (pMesures->load())))].second;
+    }
+    etaitEnLecture = joue;
+    const double noiresParEchantillon = bpm / 60.0 / sr;
+
     for (int t = 0; t < nombreOnglets; ++t)
     {
         auto& v = voix[static_cast<size_t> (t)];
         auto& version = versionCourbe[static_cast<size_t> (t)];
+        const double cycle = cycleNoires (t, npm);
 
-        // Nouvelle courbe de base envoyee par l'interface ? On la prend si le verrou est libre.
+        // Courbe en cours modifiee dans l'editeur : elle joue tout de suite, l'evolution repart d'elle.
         if (v.versionAudio != version.load (std::memory_order_acquire))
         {
             const juce::SpinLock::ScopedTryLockType essai (verrouPartage);
             if (essai.isLocked())
             {
-                // Courbe en cours modifiee dans l'editeur : elle joue tout de suite, l'evolution repart d'elle.
                 v.jouee = courbePartagee[static_cast<size_t> (t)];
                 v.rJouee = reglagePartage[static_cast<size_t> (t)];
                 v.fJouee = famillePartagee[static_cast<size_t> (t)];
                 v.joueeEstLaBase = false;
-                v.prochaineValide = false;
+                v.fondu = 1.0;
                 v.versionAudio = version.load (std::memory_order_relaxed);
                 v.aPublier = true;
-                if (v.dernierCycle != std::numeric_limits<int64_t>::min() && lire (t, evolution) > 0.5f)
-                    preparerProchaine (t, v.dernierCycle, cycleNoires (t, npm), npm);
+                if (lire (t, evolution) > 0.5f && lire (t, verrou) < 0.5f)
+                    preparerProchaine (t, cycle, npm, tempsNoires,
+                                       v.dernierCycle == std::numeric_limits<int64_t>::min() ? 0.0 : static_cast<double> (v.dernierCycle) * cycle / npm);
+                else
+                    v.prochaineValide = false;
             }
         }
         if (v.versionSeedAudio != versionSeed[static_cast<size_t> (t)].load (std::memory_order_acquire))
@@ -612,10 +724,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             }
         }
 
-        const bool actifOnglet = lire (t, actif) > 0.5f;
+        const bool envoi = envoie (t);
         const bool modeNote = lire (t, depart) > 0.5f;
-        const double cycle = cycleNoires (t, npm);
-        const double pas = bpm / 60.0 / sr / cycle;
+        const double pas = noiresParEchantillon / cycle;
+        const double pasFondu = lire (t, fondu) > 0.0f ? pas / (lire (t, fondu) * 0.01) : 1.0;
         const double cases = cycle / juce::jmax (1.0e-3, caseNoires (t));
         const float swingOnglet = lire (t, PluginProcessor::swing) * 0.01f;
         double position = modeNote ? v.positionNote : (joue ? ppq / cycle : v.phaseLibre);
@@ -635,6 +747,27 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             v.compteurEnvoi = 0;
         }
 
+        // DAW a l'arret : rien ne joue (pas de CC, pas d'evolution, ecoute muette). Reprise a la lecture.
+        if (! joue)
+        {
+            v.dernierCc = -1;
+            v.dernierCycle = std::numeric_limits<int64_t>::min(); // la reprise compte comme un nouveau depart
+            v.reprise = true;
+            // La prochaine courbe s'affiche deja (evolution allumee pendant l'arret).
+            const bool evolue = lire (t, evolution) > 0.5f && lire (t, verrou) < 0.5f;
+            if (evolue && ! v.prochaineValide)
+                preparerProchaine (t, cycle, npm, tempsNoires, 0.0);
+            else if (! evolue && v.prochaineValide)
+            {
+                v.prochaineValide = false;
+                v.aPublier = true;
+            }
+            if (v.aPublier)
+                publier (t);
+            ccAffiche[static_cast<size_t> (t)].store (-1, std::memory_order_relaxed);
+            continue;
+        }
+
         int prochaineNote = 0;
         float phaseCourbe = 0.0f;
         for (int i = 0; i < numSamples; ++i)
@@ -648,15 +781,30 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
             const double p = position + static_cast<double> (v.decalage.next());
             const auto numeroCycle = static_cast<int64_t> (std::floor (p));
-            if (numeroCycle != v.dernierCycle)
+            // Nouveau cycle : on passe au cycle suivant, ou le DAW saute / reboucle (meme dans le cycle en cours,
+            // quand la boucle du DAW est plus courte que la courbe).
+            const bool premierCycle = v.dernierCycle == std::numeric_limits<int64_t>::min();
+            const bool enArriere = ! premierCycle && p < v.derniereP - 0.01;
+            // Toutes les N mesures : on verifie aussi a chaque nouvelle tranche, meme au milieu d'une courbe longue.
+            const bool nouvelleTranche = parMesures && ! premierCycle
+                                         && static_cast<int64_t> (std::floor (p * cycle / npm / blocMesures + 1.0e-6)) != v.dernierePeriode;
+            if (numeroCycle != v.dernierCycle || enArriere || nouvelleTranche)
             {
-                const bool suite = v.dernierCycle != std::numeric_limits<int64_t>::min() && numeroCycle == v.dernierCycle + 1;
+                const bool saut = ! premierCycle && numeroCycle != v.dernierCycle + 1;
                 v.dernierCycle = numeroCycle;
-                surCycle (t, numeroCycle, suite, cycle, npm);
+                surCycle (t, p, saut, cycle, npm, tempsNoires + noiresParEchantillon * i);
             }
+            v.derniereP = p;
 
             phaseCourbe = courbes::swinguer (static_cast<float> (p - std::floor (p)), cases, swingOnglet);
-            const float brut = v.jouee.valeur (phaseCourbe);
+            float brut = v.jouee.valeur (phaseCourbe);
+            if (v.fondu < 1.0)
+            {
+                // Fondu : on glisse de l'ancienne courbe vers la nouvelle (en douceur, courbe en S).
+                const float w = static_cast<float> (v.fondu * v.fondu * (3.0 - 2.0 * v.fondu));
+                brut = v.ancienne.valeur (phaseCourbe) + (brut - v.ancienne.valeur (phaseCourbe)) * w;
+                v.fondu = juce::jmin (1.0, v.fondu + pasFondu);
+            }
             const float lo = v.bas.next(), hi = v.haut.next();
             v.sortie.setTarget (lo + (hi - lo) * brut);
             v.valeur = v.sortie.next();
@@ -666,7 +814,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                 v.sortie.snap (0.0f);
             }
 
-            if (actifOnglet && --v.compteurEnvoi <= 0)
+            if (envoi && --v.compteurEnvoi <= 0)
             {
                 v.compteurEnvoi = pasEnvoi;
                 const int valeurCc = juce::jlimit (0, 127, juce::roundToInt (v.valeur * 127.0f));
@@ -680,7 +828,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             // Ecoute : un son test dont le volume suit la courbe de l'onglet affiche.
             if (t == ongletEcoute)
             {
-                ton.setTarget (actifOnglet ? v.valeur : 0.0f);
+                ton.setTarget (envoi ? v.valeur : 0.0f);
                 const float volume = ton.next();
                 const float e = ecoute.next();
                 if (e > 0.0f)
@@ -695,6 +843,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             }
             position += pas;
         }
+        if (! envoi)
+            v.dernierCc = -1; // a la reprise (dé-mute), renvoyer la valeur tout de suite
 
         if (modeNote)
             v.positionNote = position;
@@ -704,8 +854,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             publier (t);
         phaseAffichee[static_cast<size_t> (t)].store (phaseCourbe, std::memory_order_relaxed);
         valeurAffichee[static_cast<size_t> (t)].store (v.valeur, std::memory_order_relaxed);
-        ccAffiche[static_cast<size_t> (t)].store (actifOnglet ? v.dernierCc : -1, std::memory_order_relaxed);
+        ccAffiche[static_cast<size_t> (t)].store (envoi ? v.dernierCc : -1, std::memory_order_relaxed);
     }
+    if (joue)
+        tempsNoires += noiresParEchantillon * numSamples;
 }
 
 //==============================================================================
@@ -883,8 +1035,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     auto state = juce::ValueTree::fromXml (*xml);
     // v1/v2 -> v3 : une seule courbe (enfant COURBE sans "onglet") = onglet 1 ; les autres onglets gardent
     // leur courbe par defaut. Les parametres de l'onglet 1 ont garde leurs identifiants.
-    editorWidth = juce::jlimit (1100, 2400, static_cast<int> (state.getProperty ("largeur", 1320)));
-    editorHeight = juce::jlimit (760, 1600, static_cast<int> (state.getProperty ("hauteur", 860)));
+    editorWidth = juce::jlimit (1200, 2400, static_cast<int> (state.getProperty ("largeur", 1400)));
+    editorHeight = juce::jlimit (880, 1600, static_cast<int> (state.getProperty ("hauteur", 960)));
     aimant = static_cast<bool> (state.getProperty ("aimant", true));
     ongletAffiche = juce::jlimit (0, nombreOnglets - 1, static_cast<int> (state.getProperty ("onglet_affiche", 0)));
     graineEvolution = static_cast<uint32_t> (static_cast<juce::int64> (state.getProperty ("graine_evolution", 12345)));

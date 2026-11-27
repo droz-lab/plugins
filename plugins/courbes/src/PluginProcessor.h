@@ -77,7 +77,7 @@ public:
     float valeur (int onglet, const char* base) const;
 
     // Interface : taille, aimant, onglet affiche (garde avec le projet).
-    std::atomic<int> editorWidth { 1320 }, editorHeight { 860 };
+    std::atomic<int> editorWidth { 1400 }, editorHeight { 960 };
     std::atomic<bool> aimant { true };
     std::atomic<int> ongletAffiche { 0 };
     std::array<std::atomic<bool>, nombreOnglets> visible {};
@@ -123,6 +123,11 @@ public:
         int familleJouee = 0, familleProchaine = 0;
         courbes::Reglage reglageJouee;
         int versionCourbe = 0; // version de la courbe en cours que l'audio a deja prise en compte
+        static constexpr int tailleHistorique = 8;
+        std::array<courbes::Courbe, tailleHistorique> historique {};   // du plus recent au plus ancien
+        std::array<int, tailleHistorique> famillesHistorique {};
+        std::array<courbes::Reglage, tailleHistorique> reglagesHistorique {};
+        int nbHistorique = 0;
         bool prochaineValide = false, joueeEstLaBase = true;
         int cyclesAvant = 0;
     };
@@ -151,11 +156,20 @@ private:
 
     struct Voix
     {
-        courbes::Courbe base, jouee, prochaine;
+        courbes::Courbe base, jouee, prochaine, ancienne; // ancienne : courbe d'avant, pendant le fondu
         courbes::Reglage rBase, rJouee, rProchaine;
         int fBase = 0, fJouee = 0, fProchaine = 0;
         bool prochaineValide = false, prochaineEstLaBase = false, joueeEstLaBase = true;
         int64_t cycleProchaine = 0, dernierCycle = std::numeric_limits<int64_t>::min();
+        int64_t iterations = 0, changements = 0, dernierePeriode = std::numeric_limits<int64_t>::min();
+        int cyclesAvant = 0;
+        double derniereP = 0.0;
+        bool reprise = true; // premier cycle apres un depart de lecture : on joue la courbe en cours, sans changer
+        double fondu = 1.0; // 0 -> 1 pendant le passage de l'ancienne courbe a la nouvelle
+        std::array<courbes::Courbe, Lecture::tailleHistorique> historique {};
+        std::array<int, Lecture::tailleHistorique> famillesHistorique {};
+        std::array<courbes::Reglage, Lecture::tailleHistorique> reglagesHistorique {};
+        int nbHistorique = 0;
         bool aPublier = true;
         double phaseLibre = 0.0, positionNote = 0.0;
         droz::Smoother sortie, decalage, bas, haut;
@@ -164,8 +178,9 @@ private:
         int versionAudio = 0, versionSeedAudio = 0;
     };
 
-    void surCycle (int onglet, int64_t cycle, bool suite, double cycleNoires, double npm) noexcept;
-    void preparerProchaine (int onglet, int64_t apres, double cycleNoires, double npm) noexcept;
+    void surCycle (int onglet, double position, bool saut, double cycleNoires, double npm, double tempsNoires) noexcept;
+    void preparerProchaine (int onglet, double cycleNoires, double npm, double tempsNoires, double positionMesures) noexcept;
+    void repartirDeLaSeed (int onglet) noexcept;
     courbes::Evolution lireEvolution (int onglet, bool communs, int& cycles) const noexcept;
     void publier (int onglet) noexcept;
 
@@ -173,8 +188,10 @@ private:
 
 public:
     /** Parametres de chaque onglet, dans l'ordre de nomsParametresOnglet(). */
-    enum Champ : int { actif = 0, longueur, ternaire, grille, grilleTernaire, phase, cc, canal, min, max, lissage,
-                       swing, depart, evolution, lie, coherence, nombreChamps };
+    enum Champ : int { mute = 0, solo, longueur, ternaire, grille, grilleTernaire, phase, cc, canal, min, max, lissage,
+                       swing, depart, evolution, lie, coherence, fondu, verrou, nombreChamps };
+    /** L'onglet envoie-t-il son CC (mute / solo, comme sur une table de mixage) ? */
+    bool envoie (int onglet) const noexcept;
     static const char* nomParametreOnglet (int champ);
 
 private:
@@ -209,6 +226,9 @@ private:
     std::atomic<uint32_t> graineEvolution { 12345 };
 
     std::atomic<float>* pEcoute = nullptr;
+    std::atomic<float>* pSeedDepart = nullptr;
+    double tempsNoires = 0.0;     // temps joue en noires, toujours croissant (meme quand le DAW boucle)
+    bool etaitEnLecture = false;
     std::atomic<float>* pRythme = nullptr;
     std::atomic<float>* pMesures = nullptr;
     double sr = 48000.0;

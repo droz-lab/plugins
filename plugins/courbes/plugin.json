@@ -3,7 +3,7 @@
   "cible": "DrozCourbes",
   "code": "Dro1",
   "type": "instrument",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "auteur": "Zomban",
   "description": "Generateur de courbes synchronisees au tempo, rangees par familles (rampes, pompes, marches, rebonds...), envoyees en MIDI CC pour moduler n'importe quel parametre.",
   "midi_sortie": true

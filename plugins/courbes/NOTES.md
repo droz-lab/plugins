@@ -62,6 +62,19 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
   - Longueur : 2 mesures par defaut, jusqu'a 32 mesures.
   - Verifie : tests communs 9/9, pluginval 5, test a part (seed, solo, 1/4 de mesure, retourner sur les 128 formes).
 
+- v0.4.0 (2026-11-27) : evolution reparee et testee a fond.
+  - Bug v0.3 : a chaque retour de boucle du DAW, l'evolution repartait de la seed (courbe figee si la
+    boucle est plus courte que la courbe). Maintenant : boucles et sauts = nouvelles iterations, plus de
+    retour a la seed sauf option "Seed a chaque lecture" (eteinte par defaut). N mesures verifie en continu
+    (aussi au milieu d'une courbe longue). Variante identique a la courbe en cours : on retire.
+  - DAW a l'arret : rien ne joue (ni CC ni evolution), la prochaine courbe s'affiche quand meme.
+  - Fondu entre courbes (defaut 50 % d'un cycle), Cadenas par onglet, Historique des 8 dernieres courbes.
+  - Onglets : V / S / M (visible, solo, mute) dans chaque onglet, Dé-mute / Dé-solo, mini-barre de valeur ;
+    "Actif" supprime (Mute le remplace). Full random = familles a chances egales. Ternaire eteint par defaut.
+  - Logo DROZ COURBES (O en planete, etoiles, insecte sur une vague).
+  - Tests : tests/evolution.cpp, 664 verifications (216 scenarios transport x rythme x longueur + arret,
+    determinisme, seed, modification, fondu, onglets lies, multi-solo, mute/solo, depart note).
+
 ## A faire / idees
 
 - Tester dans Bitwig et Ableton le routage du CC (voir "Utilisation" ci-dessous) et noter ce qui marche.

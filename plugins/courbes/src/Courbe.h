@@ -84,6 +84,20 @@ public:
         }
     }
 
+    /** Meme forme (memes points, memes segments) ? */
+    bool memeForme (const Courbe& o) const noexcept
+    {
+        if (n != o.n)
+            return false;
+        for (int i = 0; i < n; ++i)
+        {
+            const auto &a = pts[static_cast<size_t> (i)], &b = o.pts[static_cast<size_t> (i)];
+            if (std::abs (a.x - b.x) > 1.0e-5f || std::abs (a.y - b.y) > 1.0e-5f || std::abs (a.tension - b.tension) > 1.0e-4f || a.type != b.type)
+                return false;
+        }
+        return true;
+    }
+
     /** Valeur de la courbe a `phase` dans [0, 1). Le dernier point rejoint le premier (cycle). */
     float valeur (float phase) const noexcept
     {
