@@ -1,11 +1,18 @@
 name: Sortie
 
-# Publier une version durable d'un plugin : pousser une etiquette <dossier>-v<version>, ex. spiralift-v0.2.0.
-# La version doit etre celle de plugins/<dossier>/plugin.json. Les zips arrivent dans l'onglet Releases.
+# Publier une version durable d'un plugin, au choix :
+#   - onglet Actions > Sortie > Run workflow, en donnant le dossier du plugin (le plus simple) ;
+#   - pousser une etiquette <dossier>-v<version>, ex. spiralift-v0.2.0.
+# La version est celle de plugins/<dossier>/plugin.json. Les zips arrivent dans l'onglet Releases.
 
 on:
   push:
     tags: ["*-v[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      dossier:
+        description: "Dossier du plugin a publier (ex. premier-jet)"
+        required: true
 
 permissions:
   contents: read
@@ -16,20 +23,40 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       dossier: ${{ steps.tag.outputs.dossier }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - id: tag
         env:
-          TAG: ${{ github.ref_name }}
+          EVENEMENT: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+          DEMANDE: ${{ inputs.dossier }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          dossier="${TAG%-v*}"
-          version="${TAG##*-v}"
-          attendu=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
-          if [ "$version" != "$attendu" ]; then
-            echo "L'etiquette dit $version, plugin.json dit $attendu : aligner les deux."
-            exit 1
+          if [ "$EVENEMENT" = "workflow_dispatch" ]; then
+            dossier="$DEMANDE"
+            if [ ! -f "plugins/$dossier/plugin.json" ]; then
+              echo "Pas de plugin dans plugins/$dossier"
+              exit 1
+            fi
+            version=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
+            tag="$dossier-v$version"
+            if gh release view "$tag" > /dev/null 2>&1; then
+              echo "La version $tag existe deja : monter 'version' dans plugins/$dossier/plugin.json avant de publier."
+              exit 1
+            fi
+          else
+            tag="$REF"
+            dossier="${tag%-v*}"
+            version="${tag##*-v}"
+            attendu=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['version'])" "$dossier")
+            if [ "$version" != "$attendu" ]; then
+              echo "L'etiquette dit $version, plugin.json dit $attendu : aligner les deux."
+              exit 1
+            fi
           fi
           echo "dossier=$dossier" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   compiler:
     needs: lire
@@ -51,9 +78,10 @@ jobs:
       - name: Release GitHub
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.lire.outputs.tag }}
           DOSSIER: ${{ needs.lire.outputs.dossier }}
         run: |
           notes="plugins/$DOSSIER/NOTES.md"
           [ -f "$notes" ] || notes=README.md
-          gh release create "$TAG" recu/plugins-*/*.zip recu/apercu/*.png --title "$TAG" --notes-file "$notes"
+          # Cree aussi l'etiquette si elle n'existe pas encore (publication par le bouton).
+          gh release create "$TAG" recu/plugins-*/*.zip recu/apercu/*.png --title "$TAG" --notes-file "$notes" --target "$GITHUB_SHA"

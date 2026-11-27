@@ -62,7 +62,7 @@ A la main :
 ## Publier une version
 
 1. Monter `version` dans `plugins/<dossier>/plugin.json`, fusionner la PR.
-2. Poser l'etiquette `<dossier>-v<version>` sur `main` (ex. `spiralift-v0.2.0`).
+2. Onglet **Actions** > **Sortie** > **Run workflow**, taper le dossier du plugin (ex. `premier-jet`).
 3. Les zips Windows, Mac et Linux arrivent dans l'onglet **Releases**, sans limite de duree.
 
 ## Compiler chez soi (facultatif)
