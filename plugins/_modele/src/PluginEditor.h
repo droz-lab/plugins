@@ -18,8 +18,11 @@ private:
     bool ready = false; // vrai une fois la taille gardee restauree
 
     droz::ui::LookAndFeel look; // declare avant les controles : ils s'en servent jusqu'a leur destruction
-    juce::Slider gainSlider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    // Un potard = un droz::ui::Knob : libelle, valeur, info-bulle. Les autres controles : docs/HABILLAGE.md.
+    droz::ui::Knob gain { "Gain", juce::String::fromUTF8 ("Niveau de sortie. Double-clic : valeur par défaut."), " dB" };
     juce::AudioProcessorValueTreeState::SliderAttachment gainAttachment;
+
+    juce::TooltipWindow tooltips { this }; // affiche les info-bulles des controles
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)
 };

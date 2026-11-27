@@ -49,7 +49,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 - Si le plugin peut monter en niveau (distorsion, feedback, resonance) : limiteur de securite en sortie, et aucune valeur non finie ne sort.
 - Interface : info-bulle sur chaque controle, double-clic = valeur par defaut, polices et images libres de droits (SIL OFL) via `juce_add_binary_data`.
 - Une fonction a la fois, finie, plutot que plusieurs a moitie.
-- Habillage : partir de `droz::ui` (`libs/droz_ui`) : couleurs, potards, en-tete commun. Sombre, texte blanc, le rouge-orange `colours::accent` comme seule couleur vive.
+- Habillage : regle dans `docs/HABILLAGE.md`, briques dans `droz::ui` (`libs/droz_ui`). Aucune couleur ni police hors de `droz::ui` : le rouge-orange `colours::accent` est la seule couleur vive.
 - Mac : pas compile sur les PR. Si le plugin touche a du code propre a un systeme, lancer Actions > Compilation > Run workflow avec la case "mac" avant de fusionner.
 
 ## Memoire
