@@ -4,6 +4,7 @@
   python tools/droz.py nouveau <dossier> --nom "Mon Plugin" [--type effet|instrument] [--auteur fx]
   python tools/droz.py verifier            registre des plugins : codes uniques, champs presents
   python tools/droz.py liste               tableau des plugins
+  python tools/droz.py vitrine             refait le tableau des plugins du README
   python tools/droz.py modifies <base>     plugins touches depuis <base> (pour la compilation auto)
 """
 from __future__ import annotations
@@ -103,6 +104,10 @@ def cmd_verifier(_) -> int:
         print("ERREUR", e)
     if not err:
         print(f"registre : {len(metas())} plugin(s), aucun conflit")
+    # Non bloquant : un oubli ne doit pas faire rougir la PR de quelqu'un d'autre.
+    nouveau = readme_avec_vitrine()
+    if nouveau is not None and nouveau != README.read_text(encoding="utf-8"):
+        print("A FAIRE : le tableau des plugins du README n'est plus a jour, lancer `python tools/droz.py vitrine`")
     return 1 if err else 0
 
 
@@ -111,6 +116,41 @@ def cmd_liste(_) -> int:
     print("|---|---|---|---|---|---|")
     for dossier, m in metas().items():
         print(f"| {dossier} | {m.get('nom')} | {m.get('type')} | {m.get('version')} | {m.get('code')} | {m.get('auteur')} |")
+    return 0
+
+
+README = RACINE / "README.md"
+DEBUT, FIN = "<!-- vitrine:debut -->", "<!-- vitrine:fin -->"
+
+
+def tableau_vitrine() -> str:
+    lignes = ["| Plugin | Ce qu'il fait | Version | Responsable |", "|---|---|---|---|"]
+    for dossier, m in metas().items():
+        if dossier.startswith("_"):
+            continue
+        description = str(m.get("description", "")).replace("|", "/").strip() or "-"
+        lignes.append(f"| [{m.get('nom')}](plugins/{dossier}/NOTES.md) | {description} | {m.get('version')} | {m.get('auteur')} |")
+    return "\n".join(lignes)
+
+
+def readme_avec_vitrine() -> str | None:
+    texte = README.read_text(encoding="utf-8")
+    if DEBUT not in texte or FIN not in texte:
+        return None
+    avant, reste = texte.split(DEBUT, 1)
+    return avant + DEBUT + "\n" + tableau_vitrine() + "\n" + FIN + reste.split(FIN, 1)[1]
+
+
+def cmd_vitrine(_) -> int:
+    nouveau = readme_avec_vitrine()
+    if nouveau is None:
+        print(f"ERREUR README.md : reperes {DEBUT} et {FIN} introuvables")
+        return 1
+    if nouveau != README.read_text(encoding="utf-8"):
+        README.write_text(nouveau, encoding="utf-8", newline="\n")
+        print("README.md : tableau des plugins refait")
+    else:
+        print("README.md : tableau des plugins a jour")
     return 0
 
 
@@ -143,6 +183,7 @@ def main() -> int:
     n.set_defaults(f=cmd_nouveau)
     sub.add_parser("verifier").set_defaults(f=cmd_verifier)
     sub.add_parser("liste").set_defaults(f=cmd_liste)
+    sub.add_parser("vitrine").set_defaults(f=cmd_vitrine)
     m = sub.add_parser("modifies")
     m.add_argument("base")
     m.set_defaults(f=cmd_modifies)
