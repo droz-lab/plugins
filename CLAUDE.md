@@ -49,11 +49,14 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 - Si le plugin peut monter en niveau (distorsion, feedback, resonance) : limiteur de securite en sortie, et aucune valeur non finie ne sort.
 - Interface : info-bulle sur chaque controle, double-clic = valeur par defaut, polices et images libres de droits (SIL OFL) via `juce_add_binary_data`.
 - Une fonction a la fois, finie, plutot que plusieurs a moitie.
+- Habillage : partir de `droz::ui` (`libs/droz_ui`) : couleurs, potards, en-tete commun. Monochrome, une seule couleur propre au plugin au maximum.
+- Mac : pas compile sur les PR. Si le plugin touche a du code propre a un systeme, lancer Actions > Compilation > Run workflow avec la case "mac" avant de fusionner.
 
 ## Memoire
 
 - `plugins/<dossier>/NOTES.md` : memoire du plugin (but, etat, decisions, ce qui a ete essaye et abandonne). A mettre a jour a chaque session.
 - `docs/PIEGES.md` : lecons utiles a tous. Ajout libre, une entree courte, datee, avec le prenom.
+- `carnet/<prenom>/` : reflexions et idees de chacun, un fichier par sujet. Chacun n'ecrit que dans son dossier.
 - Ce fichier : regles stables. Il ne grossit pas. Modification par PR `commun:` uniquement.
 
 ## Securite

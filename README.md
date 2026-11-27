@@ -15,7 +15,7 @@ Je suis <prenom>, niveau en code : <aucun | un peu | a l'aise>. DAW : <Ableton |
 Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 ```
 
-3. Ton Claude cree `plugins/<dossier>/`, pousse une branche et ouvre une PR. GitHub compile pour Windows et Mac.
+3. Ton Claude cree `plugins/<dossier>/`, pousse une branche et ouvre une PR. GitHub compile pour Windows (et Linux pour les tests). La version Mac se compile a la demande (Actions > Compilation > Run workflow, case "mac") et a chaque publication.
 4. Recupere le plugin : onglet **Actions** > le dernier run > **Artifacts** > `plugins-Windows` ou `plugins-Mac`. L'artifact `apercu` contient la capture de l'interface et les rendus WAV.
 
 ## Premiere contribution (test de l'atelier)
@@ -46,6 +46,8 @@ A la main :
 | `plugins/<dossier>/` | Un plugin : `plugin.json` (identite), `src/`, `NOTES.md` (memoire du plugin), `boucles/` (WAV courts pour les rendus) | Son responsable |
 | `plugins/_modele/` | Le point de depart, compile a chaque changement commun | PR relue |
 | `libs/droz_dsp/` | Briques DSP partagees, C++ pur, testees | PR relue |
+| `libs/droz_ui/` | Habillage commun des interfaces (couleurs, potards, en-tete) | PR relue |
+| `carnet/<prenom>/` | Reflexions et idees de chacun | Chacun chez soi |
 | `tools/droz.py` | Creer un plugin, verifier le registre | PR relue |
 | `tools/outil/` | Tests communs, rendu WAV et capture d'interface sans DAW | PR relue |
 | `.github/workflows/` | Compilation et sorties | PR relue |

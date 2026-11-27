@@ -1,6 +1,7 @@
 name: Compilation
 
-# Compile, teste et valide les plugins touches, sur Linux, Windows et Mac.
+# Compile, teste et valide les plugins touches, sur Linux et Windows.
+# Mac : seulement a la demande (Run workflow, case "mac") et a chaque publication (sortie.yml).
 # Les zips sont dans l'onglet Actions > le run > Artifacts (30 jours). Versions durables : voir sortie.yml.
 
 on:
@@ -13,12 +14,21 @@ on:
         description: "Dossiers a compiler, separes par des virgules (vide = tous)"
         required: false
         default: ""
+      mac:
+        description: "Compiler aussi pour Mac"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       plugins:
         type: string
         required: false
         default: ""
+      mac:
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: compilation-${{ github.workflow }}-${{ github.ref }}
@@ -36,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       liste: ${{ steps.choix.outputs.liste }}
+      matrice: ${{ steps.choix.outputs.matrice }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,7 +65,16 @@ jobs:
           EVENEMENT: ${{ github.event_name }}
           BASE_PR: ${{ github.base_ref }}
           AVANT: ${{ github.event.before }}
+          MAC: ${{ inputs.mac }}
         run: |
+          linux='{"nom":"Linux","os":"ubuntu-latest","pluginval":"pluginval_Linux.zip","binaire":"./pluginval"}'
+          windows='{"nom":"Windows","os":"windows-latest","pluginval":"pluginval_Windows.zip","binaire":"./pluginval.exe"}'
+          mac='{"nom":"Mac","os":"macos-latest","pluginval":"pluginval_macOS.zip","binaire":"./pluginval.app/Contents/MacOS/pluginval"}'
+          if [ "$MAC" = "true" ]; then
+            echo "matrice={\"include\":[$linux,$windows,$mac]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrice={\"include\":[$linux,$windows]}" >> "$GITHUB_OUTPUT"
+          fi
           if [ -n "$DEMANDE" ]; then
             liste=$(echo "$DEMANDE" | tr ',' ';' | tr -d ' ')
           else
@@ -73,11 +93,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { nom: Linux, os: ubuntu-latest, pluginval: pluginval_Linux.zip, binaire: ./pluginval }
-          - { nom: Windows, os: windows-latest, pluginval: pluginval_Windows.zip, binaire: ./pluginval.exe }
-          - { nom: Mac, os: macos-latest, pluginval: pluginval_macOS.zip, binaire: ./pluginval.app/Contents/MacOS/pluginval }
+      matrix: ${{ fromJSON(needs.preparer.outputs.matrice) }}
     defaults:
       run:
         shell: bash
