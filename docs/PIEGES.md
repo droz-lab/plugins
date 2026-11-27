@@ -33,3 +33,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 - 2026-11-27, Fx, verifie. Un tiret long ou un caractere special dans un nom de fichier zippe casse la decompression sur certains systemes (`mapname: conversion failed` sous Linux). Noms de fichiers en ASCII, tirets simples.
 - 2026-11-27, Fx, verifie. Les Artifacts d'Actions demandent un compte GitHub et expirent (30 jours ici). Pour donner un plugin a quelqu'un : une Release (etiquette `<dossier>-v<version>`).
 - 2026-11-27, Fx, a retenir. Deux plugins avec le meme couple (code fabricant, code) sont confondus par le DAW. `tools/droz.py verifier` bloque les doublons. Un plugin deja sorti ailleurs garde ses codes d'origine via `fabricant` et `code_fabricant` dans son `plugin.json`.
+
+## MIDI
+
+- 2026-11-27, Zomban, verifie. JUCE decide a la compilation si un VST3 envoie du MIDI (`JucePlugin_ProducesMidiOutput`) : `producesMidi()` a `true` ne suffit pas. Mettre `"midi_sortie": true` dans le `plugin.json`. Les CC partent vers le DAW en `LegacyMIDICCOutEvent`.
+- 2026-11-27, Zomban, a retenir. Ableton ne route la sortie MIDI que des instruments, pas des effets audio : un plugin qui envoie du MIDI doit etre de type `instrument`.
