@@ -1,0 +1,96 @@
+name: Essais
+
+# Chaque mise a jour d'un chantier devient installable "a l'essai", sans geste de l'auteur :
+# des que le Verdict d'une branche est vert, l'installeur Windows du run est pose sur la page fixe "dernier",
+# ou il remplace le precedent, et essais.json dit de quel commit il vient. Le catalogue (centre.yml) le
+# propose alors dans le Droz Software Center. Quand le plugin arrive dans main ou que sa branche disparait,
+# l'essai est retire.
+#
+# Tourne avec le code de main, jamais celui de la branche : de la branche, seuls les plugin.json et les
+# FICHE.md sont lus. Les runs venus d'un autre depot (fork) sont ignores.
+
+on:
+  workflow_run:
+    workflows: [Compilation]
+    types: [completed]
+
+permissions:
+  contents: write # poser les installeurs sur la page "dernier"
+  actions: read   # recuperer les fichiers du run
+
+jobs:
+  essais:
+    name: Installeurs d'essai
+    # Sur le job, pas sur le workflow : les runs sautes (main, forks) n'annulent pas un essai en attente.
+    concurrency:
+      group: essais
+      cancel-in-progress: false
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch != 'main' &&
+      !startsWith(github.event.workflow_run.head_branch, 'robot/') &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    # Windows : une branche ancienne ne fabrique pas encore son installeur, on le fait ici a partir du plugin
+    # compile, avec l'installeur commun de main (tools/installeur.iss).
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN: ${{ github.event.workflow_run.id }}
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
+      BRANCHE: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Installeurs du run (deja faits, ou fabriques a partir du plugin compile)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force brut, recu | Out-Null
+          gh run download $env:RUN --pattern "*Windows*" --dir brut 2>$null
+          if ($LASTEXITCODE -ne 0) { Write-Host "Ce run n'a rien compile pour Windows : rien a poser." }
+          $global:LASTEXITCODE = 0
+          # Les anciennes branches rangent le plugin dans un zip.
+          Get-ChildItem brut -Recurse -File -Filter *.zip | ForEach-Object {
+            Expand-Archive $_.FullName -DestinationPath (Join-Path $_.DirectoryName $_.BaseName) -Force
+          }
+          Get-ChildItem brut -Recurse -File -Filter *-Setup.exe | Copy-Item -Destination recu -Force
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $build = $env:COMMIT.Substring(0, 7)
+          $paquets = Get-ChildItem brut -Recurse -Directory -Filter *.vst3 | Where-Object { Test-Path (Join-Path $_.FullName "Contents\x86_64-win") }
+          foreach ($vst in $paquets) {
+            # Pas BaseName : pour un dossier, PowerShell y laisse l'extension ("Droz Courbes.vst3").
+            $nom = [System.IO.Path]::GetFileNameWithoutExtension($vst.Name)
+            $fichier = ($nom -replace " ", "-") + "-Setup"
+            if (Test-Path "recu\$fichier.exe") { continue }
+            if ($nom -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,60}$') { Write-Host "nom refuse : $nom"; continue }
+            $info = Join-Path $vst.FullName "Contents\Resources\moduleinfo.json"
+            $version = "0.0.0"
+            if ((Test-Path $info) -and ((Get-Content $info -Raw) -match '"Version"\s*:\s*"(\d+\.\d+\.\d+)')) { $version = $Matches[1] }
+            if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+            & $iscc /Qp "/DNom=$nom" "/DVersion=$version" "/DBuild=$build" "/DSource=$($vst.FullName)" "/DSortie=$(Join-Path $PWD 'recu')" "/DFichier=$fichier" tools\installeur.iss
+            if ($LASTEXITCODE -ne 0) { Write-Host "installeur pas fabrique : $nom"; $global:LASTEXITCODE = 0 }
+          }
+          Get-ChildItem recu
+
+      - name: Poser les installeurs sur la page "dernier"
+        shell: bash
+        run: |
+          if ! gh release view dernier > /dev/null 2>&1; then
+            gh release create dernier --title "Droz Lab : l'atelier" --latest=false \
+              --notes "Le Droz Software Center et un installeur Windows par plugin, toujours la derniere version."
+          fi
+          gh release download dernier --pattern essais.json --output essais.json 2> /dev/null || echo '{}' > essais.json
+          git fetch --quiet --depth 1 origin "$COMMIT"
+          python tools/droz.py essais "$COMMIT" "$BRANCHE" recu essais.json > plan.json
+          cat plan.json
+          python - << 'PY'
+          import json, subprocess
+          plan = json.load(open("plan.json"))
+          # essais.json d'abord : le menage de sortie.yml ne retire jamais un installeur qui y est inscrit.
+          subprocess.run(["gh", "release", "upload", "dernier", "essais.json", "--clobber"], check=True)
+          for fichier in plan["poser"]:
+              subprocess.run(["gh", "release", "upload", "dernier", fichier, "--clobber"], check=True)
+          for nom in plan["retirer"]:
+              subprocess.run(["gh", "release", "delete-asset", "dernier", nom, "--yes"], check=False)
+          PY
+          python -c "import json; print('Essais poses :', ', '.join(json.load(open('plan.json'))['poser']) or 'aucun')" >> "$GITHUB_STEP_SUMMARY"

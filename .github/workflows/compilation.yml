@@ -1,24 +1,46 @@
 name: Compilation
 
-# Compile, teste et valide les plugins touches, sur Linux, Windows et Mac.
+# Compile, teste et valide les plugins touches, sur Linux et Windows.
+# Compile et essaye aussi le Droz Software Center (apps/centre) quand lui ou ce dont il depend a change.
+# Mac : seulement a la demande (Run workflow, case "mac") et a chaque publication (sortie.yml).
 # Les zips sont dans l'onglet Actions > le run > Artifacts (30 jours). Versions durables : voir sortie.yml.
 
+# Se lance a chaque push, sur toutes les branches : une branche n'a pas besoin de PR pour avoir son Verdict,
+# et son plugin devient installable "a l'essai" des que le Verdict est vert (essais.yml).
+# Sur une branche, on compile tout ce qui differe de main.
+
 on:
-  pull_request:
   push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       plugins:
-        description: "Dossiers a compiler, separes par des virgules (vide = tous)"
+        description: "Dossiers a compiler, separes par des virgules (vide = tous, aucun = rien)"
         required: false
         default: ""
+      mac:
+        description: "Compiler aussi pour Mac"
+        type: boolean
+        required: false
+        default: false
+      centre:
+        description: "Compiler et essayer aussi le Droz Software Center"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       plugins:
         type: string
         required: false
         default: ""
+      mac:
+        type: boolean
+        required: false
+        default: false
+      centre:
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: compilation-${{ github.workflow }}-${{ github.ref }}
@@ -36,11 +58,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       liste: ${{ steps.choix.outputs.liste }}
+      matrice: ${{ steps.choix.outputs.matrice }}
+      centre: ${{ steps.choix.outputs.centre }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Registre des plugins (codes uniques)
+      - name: Registre des plugins (codes uniques) et fiches (FICHE.md, docs/METHODE.md)
         run: python3 tools/droz.py verifier
       - name: Tests de libs/ (sans JUCE)
         run: |
@@ -52,19 +76,38 @@ jobs:
         env:
           DEMANDE: ${{ inputs.plugins }}
           EVENEMENT: ${{ github.event_name }}
-          BASE_PR: ${{ github.base_ref }}
+          BRANCHE: ${{ github.ref_name }}
           AVANT: ${{ github.event.before }}
+          MAC: ${{ inputs.mac }}
+          CENTRE: ${{ inputs.centre }}
         run: |
-          if [ -n "$DEMANDE" ]; then
-            liste=$(echo "$DEMANDE" | tr ',' ';' | tr -d ' ')
+          linux='{"nom":"Linux","os":"ubuntu-latest","pluginval":"pluginval_Linux.zip","binaire":"./pluginval"}'
+          windows='{"nom":"Windows","os":"windows-latest","pluginval":"pluginval_Windows.zip","binaire":"./pluginval.exe"}'
+          mac='{"nom":"Mac","os":"macos-latest","pluginval":"pluginval_macOS.zip","binaire":"./pluginval.app/Contents/MacOS/pluginval"}'
+          if [ "$MAC" = "true" ]; then
+            echo "matrice={\"include\":[$linux,$windows,$mac]}" >> "$GITHUB_OUTPUT"
           else
-            if [ "$EVENEMENT" = "pull_request" ]; then base="origin/$BASE_PR"
-            elif [ "$EVENEMENT" = "push" ]; then base="$AVANT"
-            else base="aucune"; fi
-            liste=$(python3 tools/droz.py modifies "$base" | python3 -c "import json,sys; print(';'.join(json.load(sys.stdin)))")
+            echo "matrice={\"include\":[$linux,$windows]}" >> "$GITHUB_OUTPUT"
           fi
+          if [ "$EVENEMENT" = "push" ] && [ "$BRANCHE" = "main" ]; then base="$AVANT"
+          elif [ "$EVENEMENT" = "push" ]; then base="origin/main"
+          else base="aucune"; fi
+          if [ "$DEMANDE" = "aucun" ]; then
+            # Changement sans code (la page d'accueil refaite par centre.yml) : registre et tests de libs/ suffisent.
+            liste=""
+            centre=non
+          elif [ -n "$DEMANDE" ]; then
+            liste=$(echo "$DEMANDE" | tr ',' ';' | tr -d ' ')
+            centre=non
+          else
+            liste=$(python3 tools/droz.py modifies "$base" | python3 -c "import json,sys; print(';'.join(json.load(sys.stdin)))")
+            centre=$(python3 tools/droz.py centre-touche "$base")
+          fi
+          if [ "$CENTRE" = "true" ]; then centre=oui; fi
           echo "liste=$liste" >> "$GITHUB_OUTPUT"
+          echo "centre=$centre" >> "$GITHUB_OUTPUT"
           echo "Plugins a compiler : ${liste:-aucun}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Droz Software Center : $centre" >> "$GITHUB_STEP_SUMMARY"
 
   plugins:
     name: ${{ matrix.nom }}
@@ -73,11 +116,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { nom: Linux, os: ubuntu-latest, pluginval: pluginval_Linux.zip, binaire: ./pluginval }
-          - { nom: Windows, os: windows-latest, pluginval: pluginval_Windows.zip, binaire: ./pluginval.exe }
-          - { nom: Mac, os: macos-latest, pluginval: pluginval_macOS.zip, binaire: ./pluginval.app/Contents/MacOS/pluginval }
+      matrix: ${{ fromJSON(needs.preparer.outputs.matrice) }}
     defaults:
       run:
         shell: bash
@@ -99,10 +138,25 @@ jobs:
       - name: Compilation
         run: cmake --build build --config Release --parallel 4
 
-      - name: Tests communs (son fini, silence, etat, clics, interface)
+      - name: Tests communs (son fini, silence, etat, clics, interface, temps reel, transport, reprise)
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then lance="xvfb-run -a"; else lance=""; fi
           $lance ctest --test-dir build -C Release --output-on-failure
+
+      - name: Fiche et plugin d'accord (les reglages de FICHE.md existent dans le plugin)
+        if: runner.os == 'Linux'
+        env:
+          LISTE: ${{ needs.preparer.outputs.liste }}
+        run: |
+          echec=0
+          for dossier in ${LISTE//;/ }; do
+            case "$dossier" in _*) continue ;; esac
+            cible=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['cible'])" "$dossier")
+            outil=$(find build -type f -name "${cible}_outil" | head -n 1)
+            "$outil" params > "$RUNNER_TEMP/$dossier-params.txt"
+            python3 tools/droz.py fiche-params "$dossier" "$RUNNER_TEMP/$dossier-params.txt" || echec=1
+          done
+          exit $echec
 
       - name: pluginval
         run: |
@@ -112,9 +166,22 @@ jobs:
           trouve=0
           while IFS= read -r vst; do
             trouve=1
-            echo "::group::pluginval $vst"
-            $lance "${{ matrix.binaire }}" --strictness-level 5 --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"
+            # Niveau exige : 5 en chantier (0.x), 10 au palier pro (1.0.0 et plus). Voir docs/METHODE.md.
+            niveau=$(python3 tools/droz.py niveau "$(basename "$vst" .vst3)")
+            echo "::group::pluginval niveau $niveau : $vst"
+            $lance "${{ matrix.binaire }}" --strictness-level "$niveau" --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"
             echo "::endgroup::"
+            # En chantier : le niveau 10 tourne quand meme sous Linux, pour savoir ou on en est. Il ne bloque pas.
+            if [ "$niveau" != "10" ] && [ "$RUNNER_OS" = "Linux" ]; then
+              echo "::group::pluginval niveau 10 (pour information) : $vst"
+              if $lance "${{ matrix.binaire }}" --strictness-level 10 --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"; then
+                echo "pluginval niveau 10 : $(basename "$vst") passe deja" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "::warning title=pluginval niveau 10::$(basename "$vst") ne passe pas encore le niveau 10, exige au palier pro (1.0.0)"
+                echo "pluginval niveau 10 : $(basename "$vst") ne passe pas encore (exige a la 1.0.0)" >> "$GITHUB_STEP_SUMMARY"
+              fi
+              echo "::endgroup::"
+            fi
           done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
           if [ "$trouve" = 0 ]; then echo "aucun .vst3 produit"; exit 1; fi
 
@@ -147,10 +214,53 @@ jobs:
           done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
           ls -la dist
 
+      - name: Installeur Windows (un double-clic pose le plugin dans le dossier VST3)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $sortie = Join-Path $PWD "dist"
+          $build = $env:COMMIT.Substring(0, 7)   # pose dans droz.ini : le Droz Software Center distingue ainsi deux essais
+          $plugins = Get-ChildItem build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.Parent.Name -eq "VST3" }
+          if (-not $plugins) { Write-Host "aucun .vst3 produit"; exit 1 }
+          foreach ($vst in $plugins) {
+            $nom = $vst.Name -replace "\.vst3$", ""   # BaseName garde ".vst3" sur un dossier
+            $version = "0.0.0"
+            $info = Join-Path $vst.FullName "Contents\Resources\moduleinfo.json"
+            if ((Test-Path $info) -and ((Get-Content $info -Raw) -match '"Version":\s*"([0-9.]+)"')) { $version = $Matches[1] }
+            $fichier = ($nom -replace " ", "-") + "-Setup"
+            & $iscc /Qp "/DNom=$nom" "/DVersion=$version" "/DBuild=$build" "/DSource=$($vst.FullName)" "/DSortie=$sortie" "/DFichier=$fichier" tools\installeur.iss
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          Get-ChildItem dist
+
+      - name: Essai de l'installeur Windows (installation silencieuse, puis verification)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($setup in Get-ChildItem dist -Filter *-Setup.exe) {
+            $journal = Join-Path $env:RUNNER_TEMP ($setup.BaseName + ".log")
+            $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$journal`"" -Wait -PassThru
+            Write-Host "$($setup.Name) : code $($p.ExitCode)"
+            if (Test-Path $journal) { Get-Content $journal | Select-Object -Last 12 }
+            if ($p.ExitCode -ne 0) { exit 1 }
+          }
+          Get-ChildItem (Join-Path $env:CommonProgramFiles "VST3") -Recurse -Depth 3 -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          foreach ($vst in (Get-ChildItem build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.Parent.Name -eq "VST3" })) {
+            $pose = Join-Path $env:CommonProgramFiles "VST3\$($vst.Name)\Contents\x86_64-win\$($vst.Name)"
+            if (-not (Test-Path $pose)) { Write-Host "absent apres installation : $pose"; exit 1 }
+            $marque = Join-Path $env:CommonProgramFiles "VST3\$($vst.Name)\Contents\Resources\droz.ini"
+            if (-not (Test-Path $marque)) { Write-Host "absent apres installation : $marque (lu par le Droz Software Center)"; exit 1 }
+            Write-Host "installe : $pose"
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: plugins-${{ matrix.nom }}
-          path: dist/*.zip
+          path: dist/*
           retention-days: 30
           if-no-files-found: error
 
@@ -161,17 +271,106 @@ jobs:
           path: apercu/
           retention-days: 30
 
+  centre:
+    name: Droz Software Center
+    # L'appli Windows qui installe les plugins (apps/centre). Compilee, installee et essayee de bout en bout.
+    needs: preparer
+    if: needs.preparer.outputs.centre == 'oui'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compilation (l'appli, et le plugin modele qui sert a l'essai)
+        shell: bash
+        run: |
+          cmake -S . -B build -DDROZ_CENTRE=ON "-DDROZ_PLUGINS=_modele"
+          cmake --build build --config Release --parallel 4 --target DrozSoftwareCenter DrozModele_VST3
+
+      - name: Installeurs (l'appli, et deux versions du plugin modele pour l'essai)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $version = (Get-Content apps\centre\app.json -Raw | ConvertFrom-Json).version
+          $exe = Get-ChildItem build -Recurse -File -Filter DrozSoftwareCenter.exe | Select-Object -First 1
+          if (-not $exe) { Write-Host "DrozSoftwareCenter.exe pas produit"; exit 1 }
+          & $iscc /Qp "/DVersion=$version" "/DSource=$($exe.FullName)" "/DSortie=$(Join-Path $PWD 'dist')" tools\centre.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $vst = Get-ChildItem build -Recurse -Directory -Filter "Droz Modele.vst3" | Where-Object { $_.Parent.Name -eq "VST3" } | Select-Object -First 1
+          if (-not $vst) { Write-Host "Droz Modele.vst3 pas produit"; exit 1 }
+          foreach ($v in @(@("v1", "0.0.1", "essai01"), @("v2", "0.0.2", "essai02"))) {
+            & $iscc /Qp "/DNom=Droz Modele" "/DVersion=$($v[1])" "/DBuild=$($v[2])" "/DSource=$($vst.FullName)" "/DSortie=$(Join-Path $PWD "essai\$($v[0])")" "/DFichier=Droz-Modele-Setup" tools\installeur.iss
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          python apps\centre\essai\fabriquer.py essai --v1 essai\v1\Droz-Modele-Setup.exe --v2 essai\v2\Droz-Modele-Setup.exe --faux
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-ChildItem dist, essai
+
+      - name: Installation silencieuse de l'appli
+        shell: pwsh
+        run: |
+          $journal = Join-Path $env:RUNNER_TEMP "centre-setup.log"
+          $p = Start-Process dist\Droz-Software-Center-Setup.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$journal`"" -Wait -PassThru
+          Write-Host "installeur : code $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { if (Test-Path $journal) { Get-Content $journal | Select-Object -Last 20 }; exit 1 }
+          $appli = Join-Path $env:LOCALAPPDATA "Programs\Droz Software Center\DrozSoftwareCenter.exe"
+          if (-not (Test-Path $appli)) { $appli = Join-Path $env:ProgramFiles "Droz Software Center\DrozSoftwareCenter.exe" }
+          if (-not (Test-Path $appli)) { Write-Host "appli absente apres installation"; Get-Content $journal | Select-Object -Last 20; exit 1 }
+          Write-Host "installee : $appli"
+          "APPLI=$appli" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Essai sans fenetre (catalogue, installation, sans reseau, plugin verrouille, mise a jour, desinstallation)
+        shell: pwsh
+        run: |
+          $journal = "essai\journal.txt"
+          $p = Start-Process $env:APPLI -ArgumentList "--essai", "--catalogue", "essai\a.json", "--suite", "essai\b.json", "--dossier", (Join-Path $env:RUNNER_TEMP "VST3-essai"), "--donnees", (Join-Path $env:RUNNER_TEMP "centre-donnees"), "--journal", $journal -Wait -PassThru
+          if (Test-Path $journal) {
+            Get-Content $journal -Encoding utf8
+            '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            Get-Content $journal -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          } else { Write-Host "pas de journal : l'appli n'a pas demarre" }
+          Write-Host "essai : code $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Captures de la fenetre (a comparer a docs/habillage.png)
+        shell: pwsh
+        run: |
+          $p = Start-Process $env:APPLI -ArgumentList "--capture", "apercu-centre", "--catalogue", "essai\exemple.json", "--dossier", "essai\vst3-exemple" -Wait -PassThru
+          foreach ($image in "centre.png", "centre-sans-reseau.png") {
+            if (-not (Test-Path "apercu-centre\$image")) { Write-Host "capture absente : $image"; exit 1 }
+          }
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: centre-Windows
+          path: dist/Droz-Software-Center-Setup.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apercu-centre
+          path: |
+            apercu-centre/
+            essai/journal.txt
+          retention-days: 30
+
   verdict:
     name: Verdict
     # Un seul controle a exiger dans la protection de la branche main.
-    needs: [preparer, plugins]
+    needs: [preparer, plugins, centre]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - env:
           PREPARER: ${{ needs.preparer.result }}
           PLUGINS: ${{ needs.plugins.result }}
+          CENTRE: ${{ needs.centre.result }}
         run: |
-          echo "preparer=$PREPARER plugins=$PLUGINS"
+          echo "preparer=$PREPARER plugins=$PLUGINS centre=$CENTRE"
           [ "$PREPARER" = "success" ] || exit 1
           [ "$PLUGINS" = "success" ] || [ "$PLUGINS" = "skipped" ] || exit 1
+          [ "$CENTRE" = "success" ] || [ "$CENTRE" = "skipped" ] || exit 1

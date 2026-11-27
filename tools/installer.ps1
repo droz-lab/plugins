@@ -1,8 +1,10 @@
 # Installe sur Windows la derniere version publiee d'un plugin du depot droz-lab/plugins.
 #   irm https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.ps1 | iex
-# Autre plugin que premier-jet :  $env:DROZ_PLUGIN = "<dossier>"  avant la commande.
+# Le plus simple reste le Droz Software Center (voir le README). Ce script sert sans lui :
+#   $env:DROZ_PLUGIN = "<dossier>"  avant la commande.
 $ErrorActionPreference = "Stop"
-$plugin = if ($env:DROZ_PLUGIN) { $env:DROZ_PLUGIN } else { "premier-jet" }
+$plugin = $env:DROZ_PLUGIN
+if (-not $plugin) { Write-Host 'Donner le dossier du plugin : $env:DROZ_PLUGIN = "<dossier>" avant la commande.'; return }
 $dest = Join-Path $env:CommonProgramFiles "VST3"
 
 $versions = Invoke-RestMethod "https://api.github.com/repos/droz-lab/plugins/releases?per_page=100" -Headers @{ "User-Agent" = "droz-lab" }

@@ -1,0 +1,32 @@
+name: Idee de plugin
+description: Proposer un plugin, ou une fonction pour un plugin existant
+title: "Idee : "
+labels: ["idee"]
+body:
+  - type: textarea
+    id: son
+    attributes:
+      label: Le son voulu
+      description: Deux ou trois phrases. Des references si tu en as (morceau, plugin, machine).
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - Effet
+        - Instrument
+        - Fonction pour un plugin existant
+    validations:
+      required: true
+  - type: textarea
+    id: reglages
+    attributes:
+      label: Les reglages en facade
+      description: 4 a 6 au plus. Ce qu'on tourne en live.
+  - type: input
+    id: qui
+    attributes:
+      label: Qui s'en charge
+      description: Ton prenom si tu veux le faire, vide sinon.

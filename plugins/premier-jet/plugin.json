@@ -1,9 +1,0 @@
-{
-  "nom": "Droz Premier Jet",
-  "cible": "DrozPremierJet",
-  "code": "Dro1",
-  "type": "effet",
-  "version": "0.1.0",
-  "auteur": "equipe",
-  "description": "Plugin de test de l'atelier : un gain, et le nom de chaque membre affiche dans l'interface."
-}

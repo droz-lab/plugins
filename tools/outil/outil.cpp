@@ -1,7 +1,8 @@
 // Outil commun a tous les plugins du depot. Compile une fois par plugin (<cible>_outil),
 // il fait tourner le plugin sans DAW :
 //
-//   <cible>_outil test                      verifications communes (voir plus bas)
+//   <cible>_outil test [--pro]              verifications communes (voir plus bas). --pro : palier pro
+//                                           (version 1.0.0 et plus), toute alerte devient un echec
 //   <cible>_outil params                    liste des parametres
 //   <cible>_outil rendu in.wav out.wav      passe un fichier dans le plugin
 //         [--param id=0.5 ...] [--bloc 512] [--bpm 140]
@@ -21,6 +22,62 @@
 #include <random>
 #include <string>
 #include <vector>
+
+//==============================================================================
+// Sonde d'allocation : compte les malloc / free faits PENDANT processBlock (interdit en temps reel,
+// voir docs/METHODE.md). glibc seulement, donc Linux, la ou tourne toujours le Verdict.
+// Ailleurs le test "temps reel" dit qu'il ne mesure pas.
+#if defined (__GLIBC__)
+ #define DROZ_SONDE_ALLOC 1
+extern "C"
+{
+void* __libc_malloc (size_t);
+void* __libc_calloc (size_t, size_t);
+void* __libc_realloc (void*, size_t);
+void* __libc_memalign (size_t, size_t);
+void __libc_free (void*);
+}
+namespace sonde
+{
+static thread_local bool active = false;
+static long count = 0;
+static inline void note() noexcept
+{
+    if (active)
+        ++count;
+}
+} // namespace sonde
+extern "C"
+{
+void* malloc (size_t n) noexcept { sonde::note(); return __libc_malloc (n); }
+void* calloc (size_t a, size_t b) noexcept { sonde::note(); return __libc_calloc (a, b); }
+void* realloc (void* p, size_t n) noexcept { sonde::note(); return __libc_realloc (p, n); }
+void* memalign (size_t a, size_t n) noexcept { sonde::note(); return __libc_memalign (a, n); }
+void* aligned_alloc (size_t a, size_t n) noexcept { sonde::note(); return __libc_memalign (a, n); }
+int posix_memalign (void** out, size_t a, size_t n) noexcept
+{
+    sonde::note();
+    void* p = __libc_memalign (a, n);
+    if (p == nullptr)
+        return 12; // ENOMEM
+    *out = p;
+    return 0;
+}
+void free (void* p) noexcept
+{
+    if (p != nullptr)
+        sonde::note();
+    __libc_free (p);
+}
+}
+#else
+ #define DROZ_SONDE_ALLOC 0
+namespace sonde
+{
+static bool active = false;
+static long count = 0;
+} // namespace sonde
+#endif
 
 
 namespace
@@ -192,15 +249,33 @@ struct FakePlayHead final : juce::AudioPlayHead
         info.setTimeInSamples (samples);
         info.setTimeInSeconds (static_cast<double> (samples) / sampleRate);
         info.setPpqPosition (static_cast<double> (samples) / sampleRate * bpm / 60.0);
-        info.setIsPlaying (true);
+        info.setIsPlaying (playing);
         return info;
     }
 
     double bpm = 140.0, sampleRate = 48000.0;
     juce::int64 samples = 0;
+    bool playing = true;
+};
+
+/** Tete de lecture d'un hote qui ne donne rien (ca existe : certains hotes, ou le rendu hors ligne). */
+struct EmptyPlayHead final : juce::AudioPlayHead
+{
+    juce::Optional<PositionInfo> getPosition() const override { return {}; }
 };
 
 double renderBpm = 140.0;
+
+/** Scenario de transport pour `run` (test "transport"). Par defaut : lecture continue a `renderBpm`. */
+struct Transport
+{
+    enum class Head { normal, none, empty };
+    Head head = Head::normal;
+    bool playing = true;
+    double loopSeconds = 0.0;                 // > 0 : la position revient a zero toutes les `loopSeconds`
+    std::function<double (double)> bpmAt;     // tempo en fonction du temps (s), sinon `renderBpm`
+};
+Transport transport;
 
 /** Passe `in` dans le plugin. `variable` = tailles de bloc irregulieres (comme certains DAW).
     `beforeBlock(position)` permet de bouger des parametres pendant le rendu. */
@@ -219,9 +294,14 @@ Audio run (juce::AudioProcessor& p,
     juce::MidiBuffer midi;
     std::minstd_rand rng (12345);
     FakePlayHead head;
+    EmptyPlayHead emptyHead;
     head.bpm = renderBpm;
     head.sampleRate = in.sampleRate;
-    p.setPlayHead (&head);
+    head.playing = transport.playing;
+    p.setPlayHead (transport.head == Transport::Head::none ? nullptr
+                   : transport.head == Transport::Head::empty ? static_cast<juce::AudioPlayHead*> (&emptyHead)
+                                                              : static_cast<juce::AudioPlayHead*> (&head));
+    const int loop = static_cast<int> (transport.loopSeconds * in.sampleRate);
 
     for (int pos = 0; pos < in.numSamples();)
     {
@@ -244,8 +324,13 @@ Audio run (juce::AudioProcessor& p,
         if (beforeBlock)
             beforeBlock (pos);
 
-        head.samples = pos;
+        head.samples = ! transport.playing ? 0 : (loop > 0 ? pos % loop : pos);
+        if (transport.bpmAt)
+            head.bpm = transport.bpmAt (static_cast<double> (pos) / in.sampleRate);
+
+        sonde::active = true; // tout malloc / free d'ici a la ligne suivante vient du plugin
         p.processBlock (buffer, midi);
+        sonde::active = false;
 
         for (int c = 0; c < outChannels; ++c)
             std::memcpy (out.ch[static_cast<size_t> (c)].data() + pos, buffer.getReadPointer (c), sizeof (float) * static_cast<size_t> (n));
@@ -358,6 +443,7 @@ struct ScopedEditor
 //==============================================================================
 // Tests communs
 int failures = 0, warnings = 0;
+bool strict = false; // palier pro : une alerte est un echec
 
 void ok (const char* name, const juce::String& detail = {})
 {
@@ -370,6 +456,11 @@ void fail (const char* name, const juce::String& detail)
 }
 void warn (const char* name, const juce::String& detail)
 {
+    if (strict)
+    {
+        fail (name, detail + " [bloquant au palier pro]");
+        return;
+    }
     ++warnings;
     std::printf ("  ALERTE %-14s %s\n", name, detail.toRawUTF8());
 }
@@ -645,11 +736,127 @@ void testSpeed (bool synth)
         ok ("charge", juce::String::formatted ("%.2f %% d'un coeur a 48 kHz / 512 (machine de test)", load));
 }
 
+void testRealtime (bool synth)
+{
+    // Regle temps reel : aucune allocation ni liberation memoire dans processBlock, meme quand tous
+    // les reglages bougent et que la taille de bloc change. Tout se reserve dans prepareToPlay.
+   #if DROZ_SONDE_ALLOC
+    const double sr = 48000.0, seconds = 2.0;
+    auto p = make();
+    configure (*p, 2, sr, 256);
+    const auto in = synth ? makeAudio (2, static_cast<int> (seconds * sr), sr) : noise (2, seconds, sr);
+    const auto notes = synth ? arpeggio ({ 45, 57, 64 }, seconds, sr) : std::vector<Note>();
+    std::minstd_rand rng (4242);
+    std::uniform_real_distribution<float> dist (0.0f, 1.0f);
+    const long before = sonde::count;
+    run (*p, in, 256, true, notes, [&] (int) {
+        for (auto* param : p->getParameters())
+            if (param->isAutomatable())
+                param->setValueNotifyingHost (dist (rng));
+    });
+    const long n = sonde::count - before;
+    if (n > 0)
+        warn ("temps reel", juce::String (static_cast<juce::int64> (n)) + " allocation(s) ou liberation(s) memoire dans processBlock, reglages en mouvement (tout reserver dans prepareToPlay)");
+    else
+        ok ("temps reel", "aucune allocation memoire dans processBlock, reglages en mouvement");
+   #else
+    juce::ignoreUnused (synth);
+    ok ("temps reel", "non mesure sur ce systeme (la mesure se fait sous Linux)");
+   #endif
+}
+
+void testTransport (bool synth)
+{
+    // Un plugin cale au tempo doit survivre a tout ce qu'un hote peut lui dire : rien du tout, arret,
+    // boucle (la position recule), tempo qui saute, tempos extremes. Jamais de NaN ni d'explosion.
+    const double sr = 48000.0, seconds = 2.0;
+    const auto in = synth ? makeAudio (2, static_cast<int> (seconds * sr), sr) : noise (2, seconds, sr);
+    const auto notes = synth ? arpeggio ({ 45, 57 }, seconds, sr) : std::vector<Note>();
+
+    struct Cas
+    {
+        const char* nom;
+        Transport t;
+    };
+    std::vector<Cas> cas;
+    {
+        Transport t;
+        t.head = Transport::Head::none;
+        cas.push_back ({ "sans tete de lecture", t });
+    }
+    {
+        Transport t;
+        t.head = Transport::Head::empty;
+        cas.push_back ({ "hote qui ne donne aucune position", t });
+    }
+    {
+        Transport t;
+        t.playing = false;
+        cas.push_back ({ "transport arrete", t });
+    }
+    {
+        Transport t;
+        t.loopSeconds = 0.37;
+        cas.push_back ({ "boucle de 0,37 s", t });
+    }
+    {
+        Transport t;
+        t.bpmAt = [] (double s) { return (static_cast<int> (s * 4.0) % 2 == 0) ? 60.0 : 200.0; };
+        cas.push_back ({ "tempo qui saute de 60 a 200", t });
+    }
+    {
+        Transport t;
+        t.bpmAt = [] (double s) { return s < 1.0 ? 20.0 : 999.0; };
+        cas.push_back ({ "tempos extremes (20 puis 999)", t });
+    }
+
+    for (const auto& c : cas)
+    {
+        transport = c.t;
+        auto p = make();
+        configure (*p, 2, sr, 128);
+        const auto out = run (*p, in, 128, true, notes);
+        transport = Transport();
+        if (! allFinite (out) || peak (out) > 100.0f)
+        {
+            // Alerte en chantier, echec au palier pro (comme "temps reel") : la methode guide avant de bloquer.
+            warn ("transport", juce::String ("sortie invalide : ") + juce::String::fromUTF8 (c.nom));
+            return;
+        }
+    }
+    ok ("transport", juce::String (static_cast<int> (cas.size())) + " situations d'hote (arret, boucle, sauts de tempo, aucune position), sortie toujours finie");
+}
+
+void testRestart (bool synth)
+{
+    // La meme instance repreparee a une autre frequence et une autre taille de bloc, comme quand on
+    // change les reglages audio du DAW projet ouvert : pas de plantage, pas de valeur invalide.
+    auto p = make();
+    bool fine = true;
+    int etapes = 0;
+    for (auto [sr, block] : { std::pair<double, int> { 44100.0, 512 }, { 96000.0, 64 }, { 192000.0, 2048 }, { 44100.0, 16 } })
+    {
+        if (! configure (*p, 2, sr, block))
+            continue;
+        const auto in = synth ? makeAudio (2, static_cast<int> (0.5 * sr), sr) : noise (2, 0.5, sr);
+        const auto notes = synth ? arpeggio ({ 57 }, 0.5, sr) : std::vector<Note>();
+        const auto out = run (*p, in, block, false, notes);
+        p->reset();
+        p->releaseResources();
+        fine = fine && allFinite (out) && peak (out) <= 100.0f;
+        ++etapes;
+    }
+    if (! fine)
+        warn ("reprise", "sortie invalide quand la meme instance change de frequence ou de taille de bloc");
+    else
+        ok ("reprise", juce::String (etapes) + " changements de frequence et de bloc sur la meme instance (jusqu'a 192 kHz)");
+}
+
 int commandTest()
 {
     auto p = make();
     const bool synth = p->acceptsMidi() && p->getTotalNumInputChannels() == 0;
-    std::printf ("%s %s : tests communs\n", p->getName().toRawUTF8(), synth ? "(instrument)" : "(effet)");
+    std::printf ("%s %s : tests communs, palier %s\n", p->getName().toRawUTF8(), synth ? "(instrument)" : "(effet)", strict ? "pro" : "chantier");
     std::printf ("  latence annoncee : %d echantillons\n", p->getLatencySamples());
     p.reset();
 
@@ -660,6 +867,9 @@ int commandTest()
     testClicks (synth);
     testMono();
     testEditor();
+    testRealtime (synth);
+    testTransport (synth);
+    testRestart (synth);
     testSpeed (synth);
 
     std::printf ("%d echec(s), %d alerte(s)\n", failures, warnings);
@@ -809,7 +1019,10 @@ int main (int argc, char** argv)
 
     const auto cmd = args.isEmpty() ? juce::String() : args[0];
     if (cmd == "test")
+    {
+        strict = args.contains ("--pro");
         return commandTest();
+    }
     if (cmd == "params")
         return commandParams();
     if (cmd == "rendu")
@@ -817,6 +1030,6 @@ int main (int argc, char** argv)
     if (cmd == "capture")
         return commandCapture (args);
 
-    std::printf ("commandes : test | params | rendu <in.wav|-> <out.wav> [...] | capture <image.png>\n");
+    std::printf ("commandes : test [--pro] | params | rendu <in.wav|-> <out.wav> [...] | capture <image.png>\n");
     return 2;
 }
