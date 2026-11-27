@@ -105,6 +105,8 @@ def cmd_verifier(_) -> int:
     if not err:
         print(f"registre : {len(metas())} plugin(s), aucun conflit")
     # Non bloquant : un oubli ne doit pas faire rougir la PR de quelqu'un d'autre.
+    for e in ecarts_habillage():
+        print("A FAIRE habillage (docs/HABILLAGE.md) :", e)
     nouveau = readme_avec_vitrine()
     if nouveau is not None and nouveau != README.read_text(encoding="utf-8"):
         print("A FAIRE : le tableau des plugins du README n'est plus a jour, lancer `python tools/droz.py vitrine`")
@@ -117,6 +119,25 @@ def cmd_liste(_) -> int:
     for dossier, m in metas().items():
         print(f"| {dossier} | {m.get('nom')} | {m.get('type')} | {m.get('version')} | {m.get('code')} | {m.get('auteur')} |")
     return 0
+
+
+# Signes d'un habillage fait a la main : couleur ou police ecrite en dur, ou editeur sans droz::ui.
+HORS_CHARTE = re.compile(r"juce::Colour\s*\(\s*0x|juce::Colours::(?!transparent)|juce::FontOptions\s*\(")
+
+
+def ecarts_habillage() -> list[str]:
+    out = []
+    for dossier in metas():
+        sources = [f for f in sorted((PLUGINS / dossier / "src").glob("**/*")) if f.suffix in (".cpp", ".h")]
+        textes = {f: f.read_text(encoding="utf-8", errors="replace") for f in sources}
+        editeurs = [f for f in sources if "Editor" in f.name]
+        if editeurs and not any("droz/ui.h" in textes[f] for f in editeurs):
+            out.append(f"{dossier} : l'editeur n'utilise pas droz::ui")
+        for f, texte in textes.items():
+            n = len(HORS_CHARTE.findall(texte))
+            if n:
+                out.append(f"{dossier} : {n} couleur(s) ou police(s) en dur dans {f.name}")
+    return out
 
 
 README = RACINE / "README.md"
