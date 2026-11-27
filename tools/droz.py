@@ -10,6 +10,7 @@
   python tools/droz.py fiche-params <dossier> <params.txt>   les reglages de la fiche existent dans le plugin
   python tools/droz.py liste               tableau des plugins
   python tools/droz.py vitrine             refait le tableau des plugins du README (publies et en chantier)
+  python tools/droz.py centre              ecrit la page du centre Droz Lab (plugins, installation, chantiers, guide)
   python tools/droz.py modifies <base>     plugins touches depuis <base> (pour la compilation auto)
   python tools/droz.py depassees <fichier> parmi les etiquettes publiees du fichier, celles a retirer
 """
@@ -309,6 +310,109 @@ def tableau_vitrine() -> str:
     return "\n".join(lignes)
 
 
+def _api(chemin: str):
+    """Lecture de l'API GitHub par `gh`. Sans `gh` ou sans reseau : None, et la page se passe de l'info."""
+    if not shutil.which("gh"):
+        return None
+    code, sortie = _commande("gh", "api", chemin, delai=40)
+    if code != 0:
+        return None
+    try:
+        return json.loads(sortie)
+    except json.JSONDecodeError:
+        return None
+
+
+def cmd_centre(_) -> int:
+    """La page du centre : tout ce qui existe, comment l'installer, ou en est chaque chantier, par ou commencer.
+    Ecrite sur la sortie standard. `centre.yml` la pose sur la page fixe "dernier", a cote des installeurs."""
+    import datetime
+    blob = f"{DEPOT}/blob/main"
+    auteurs = {"yoy": "YoY", "zomban": "Zomban", "fx": "Fx", "equipe": "equipe"}
+
+    def qui(m):
+        return auteurs.get(str(m.get("auteur", "-")).lower(), str(m.get("auteur", "-")))
+
+    def quoi(m):
+        d = re.sub(r"\s*\(migre[^)]*\)", "", str(m.get("description", ""))).replace("|", "/").strip() or "-"
+        return d if len(d) <= 90 else d.split(" : ")[0].split(", ")[0].rstrip(".")
+
+    prs = {p["head"]["ref"]: p for p in (_api("repos/droz-lab/plugins/pulls?state=open&per_page=100") or [])}
+
+    def verdict(sha: str) -> str:
+        runs = (_api(f"repos/droz-lab/plugins/commits/{sha}/check-runs?per_page=100") or {}).get("check_runs", [])
+        for r in runs:
+            if r.get("name") == "Verdict":
+                if r.get("status") != "completed":
+                    return "en cours"
+                return "vert" if r.get("conclusion") == "success" else "rouge"
+        return "pas encore lance"
+
+    out = ["# Droz Lab : le centre", "",
+           f"Tout ce qui existe dans l'atelier, au meme endroit. Page refaite toute seule, derniere fois le "
+           f"{datetime.datetime.now(datetime.timezone.utc).strftime('%d/%m/%Y a %H:%M')} UTC.", "",
+           "## Installer", "",
+           "Windows : clique sur \"Installer\", double-clique sur le fichier, choisis ton dossier VST3. "
+           "Windows signale un editeur inconnu : \"Informations complementaires\" puis \"Executer quand meme\". "
+           "Le lien donne toujours la derniere version : pour mettre a jour, reinstalle par-dessus.", "",
+           "| Plugin | Version | Quoi | Par | Windows | En savoir plus |", "|---|---|---|---|---|---|"]
+    for dossier, m in metas().items():
+        if dossier.startswith("_"):
+            continue
+        fiche = f"[fiche]({blob}/plugins/{dossier}/FICHE.md), " if (PLUGINS / dossier / "FICHE.md").exists() else ""
+        out.append(f"| **{m.get('nom')}** | {m.get('version')} | {quoi(m)} | {qui(m)} | [Installer]({lien_installeur(str(m.get('nom')))}) | "
+                   f"{fiche}[notes]({blob}/plugins/{dossier}/NOTES.md) |")
+    out += ["", f"Mac et Linux : zips sur la page de chaque version ([Releases]({DEPOT}/releases)), marche a suivre dans le [README]({DEPOT}#readme).", "",
+            "## En chantier", "",
+            "Les plugins en cours, pas encore dans la version commune. \"Essayer\" demande d'etre connecte a GitHub : "
+            "ouvre le dernier run vert, puis telecharge le fichier en bas de page.", "",
+            "| Plugin | Par | Quoi | Ou ca en est | Fiche | Essayer | Suivre |", "|---|---|---|---|---|---|---|"]
+    chantiers = sorted(plugins_en_chantier().items(), key=lambda x: str(x[1][1].get("nom")).lower())
+    a_ecrire = []
+    for dossier, (branche, m) in chantiers:
+        a_fiche = bool(_git("ls-tree", "--name-only", f"origin/{branche}", f"plugins/{dossier}/FICHE.md").strip())
+        if not a_fiche:
+            a_ecrire.append(str(m.get("nom")))
+        pr = prs.get(branche)
+        sha = _git("rev-parse", f"origin/{branche}").strip()
+        etat = verdict(sha) if sha else "?"
+        if pr:
+            ou = f"PR {pr['number']}" + (" (brouillon)" if pr.get("draft") else "") + f", Verdict {etat}"
+            suivre = f"[PR {pr['number']}]({DEPOT}/pull/{pr['number']})"
+        else:
+            ou = f"branche sans PR, Verdict {etat}"
+            suivre = f"[branche]({DEPOT}/tree/{branche}/plugins/{dossier})"
+        essais = f"{DEPOT}/actions/workflows/compilation.yml?query=branch%3A{branche.replace('/', '%2F')}+is%3Asuccess"
+        out.append(f"| **{m.get('nom')}** | {qui(m)} | {quoi(m)} | {ou} | {'oui' if a_fiche else 'a ecrire'} | [runs verts]({essais}) | {suivre} |")
+    if not chantiers:
+        out.append("| - | - | aucun chantier en cours | - | - | - | - |")
+    out += ["", "## Par ou commencer", "",
+            f"- **Reprendre mon plugin, ou en creer un** : [un seul message a coller dans ton assistant]({blob}/docs/ATELIER.md#commencer-ici--un-seul-message-a-coller). Il met ta branche a jour, te pose ses questions en une fois, ecrit la fiche et s'occupe du reste.",
+            f"- **Proposer une idee de plugin** sans la faire toi-meme : [formulaire]({DEPOT}/issues/new?template=idee-de-plugin.yml).",
+            f"- **Signaler un souci** (plugin qui plante, controle qui bloque a tort) : [formulaire]({DEPOT}/issues/new?template=souci.yml).",
+            f"- **Comprendre comment on travaille** : [la methode]({blob}/docs/METHODE.md). Les trois premieres parties suffisent, la suite sert surtout a l'assistant.",
+            f"- **Voir a quoi ressemble un plugin Droz** : [l'habillage]({blob}/docs/HABILLAGE.md).",
+            f"- **Eviter les pieges deja rencontres** : [les lecons]({blob}/docs/PIEGES.md).", "",
+            "## A faire en ce moment", ""]
+    taches = []
+    if a_ecrire:
+        taches.append(f"Fiche a ecrire pour : {', '.join(a_ecrire)}. Le message a coller s'en charge. Rien n'est bloque en attendant.")
+    for branche, pr in sorted(prs.items(), key=lambda x: x[1]["number"]):
+        etat = verdict(pr["head"]["sha"])
+        if etat == "rouge":
+            taches.append(f"[PR {pr['number']}]({DEPOT}/pull/{pr['number']}) ({pr['user']['login']}) : Verdict rouge. A dire a son assistant : \"lis le journal du Verdict de ma PR et corrige\".")
+        elif etat == "vert" and not pr.get("draft"):
+            taches.append(f"[PR {pr['number']}]({DEPOT}/pull/{pr['number']}) ({pr['user']['login']}) : Verdict vert. Lire les commentaires de la PR, puis son auteur peut la fusionner.")
+    out += [f"- {t}" for t in taches] or ["- Rien en attente."]
+    out += ["", "## Regles du jeu, en quatre lignes", "",
+            "1. Chacun est chez lui dans son dossier de plugin. Ce qui est commun passe par une PR relue.",
+            "2. Un plugin a sa fiche avant son code : le son voulu, les reglages, les cas limites.",
+            "3. Version 0.x : on cherche, on publie vite, la methode guide sans bloquer. Version 1.0.0 : palier pro, tout est verifie.",
+            "4. Le controle Verdict dit si c'est bon. Vert : on fusionne, et la version part toute seule.", ""]
+    print("\n".join(out))
+    return 0
+
+
 def cmd_vitrine(_) -> int:
     texte = README.read_text(encoding="utf-8")
     if DEBUT not in texte or FIN not in texte:
@@ -509,6 +613,7 @@ def main() -> int:
     sub.add_parser("verifier").set_defaults(f=cmd_verifier)
     sub.add_parser("liste").set_defaults(f=cmd_liste)
     sub.add_parser("vitrine").set_defaults(f=cmd_vitrine)
+    sub.add_parser("centre").set_defaults(f=cmd_centre)
     m = sub.add_parser("modifies")
     m.add_argument("base")
     m.set_defaults(f=cmd_modifies)

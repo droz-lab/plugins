@@ -2,9 +2,43 @@
 
 Pour les membres du collectif. La page publique est le [README](../README.md).
 
-## A chaque session
+Tout l'atelier en une page, a jour toute seule : [le centre Droz Lab](https://github.com/droz-lab/plugins/releases/tag/dernier).
 
-Tu n'as rien a retenir. Ouvre le depot avec ton assistant et dis-lui ce que tu veux. Il commence par un bilan (`python tools/droz.py bilan`) : il met ta branche a jour, verifie tes fiches, et te demande en une fois ce qui lui manque (ton contexte la premiere fois, un acces, une boucle, une decision). S'il ne le fait pas, dis-lui : "Lis CLAUDE.md et fais le bilan."
+## Commencer ici : un seul message a coller
+
+Le depot sait maintenant guider ton assistant tout seul. Tu donnes une idee, meme en une phrase : il la transforme en fiche de plugin, te pose ses questions en une fois, code, et le depot verifie derriere lui ce qu'on oublie tous (clics, plantages quand le DAW boucle, reglages perdus a la reouverture). Tu passes ton temps sur le son, pas sur la procedure.
+
+Rien ne te bloque en version 0.x : la methode s'affiche en alertes, elle ne fait pas rougir ton travail. Elle devient stricte le jour ou tu decides de sortir une 1.0.0.
+
+Colle ce message tel quel dans ton assistant, ou que tu sois (appli, site, terminal). Remplace seulement ton prenom :
+
+```
+Tu travailles sur le depot GitHub droz-lab/plugins : les plugins audio du collectif Droz.
+Je suis <fx | yoy | zomban>. Fais tout ce qui suit dans l'ordre, sans me demander la permission a chaque etape.
+
+1. Ouvre ou clone https://github.com/droz-lab/plugins. Si tu n'y as pas acces, ou si tu ne peux pas
+   pousser une branche ni ouvrir une PR, dis-le-moi tout de suite et explique-moi pas a pas quoi faire.
+   Ne me demande jamais de coller un mot de passe ou un jeton ici.
+2. Retrouve ma branche de travail (elle commence par mon prenom). Mets-la a jour avec main :
+   git fetch origin main, puis git merge origin/main. S'il y a un conflit, garde mon travail dans
+   mon plugin. Dans un fichier commun (workflows, cmake, tools, docs), garde les deux changements
+   s'ils vont ensemble, sinon la version de main. Dis-moi ce que tu as fait.
+3. Lis CLAUDE.md en entier, puis docs/METHODE.md.
+4. Lance : python tools/droz.py bilan
+   Regle toi-meme tout ce qu'il liste sous "A REGLER".
+5. Pose-moi en UN seul message, avec des choix quand c'est possible, tout ce qu'il liste sous
+   "A DEMANDER" et tout ce qui te manque d'autre pour bien travailler. Range mes reponses la ou
+   CLAUDE.md le dit, pour ne plus jamais me les redemander.
+6. Pour chacun de mes plugins sans FICHE.md : ecris-la a partir de ce que le plugin fait deja,
+   note ce que tu supposes, et resume-la-moi en cinq lignes.
+7. Pousse, ouvre ou mets a jour la PR, attends le controle Verdict. S'il est rouge, lis le journal
+   et corrige. S'il y a des alertes, explique-les-moi simplement et propose la correction.
+8. Termine par trois lignes : ce qui a change, le lien de la PR, ce que je dois ecouter ou decider.
+```
+
+Les fois suivantes, dis simplement ce que tu veux ("ajoute un swing a mon gate", "fais-moi un delai qui degrade"). L'assistant refait son bilan tout seul. S'il ne le fait pas : "Lis CLAUDE.md et fais le bilan."
+
+Une regle te gene, un controle te bloque a tort : ouvre une Issue. La methode est la pour nous servir, elle se corrige.
 
 ## Demarrer un plugin
 

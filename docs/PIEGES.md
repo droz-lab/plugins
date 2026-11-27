@@ -44,6 +44,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx, verifie. Depuis une session distante, supprimer une Release ou une etiquette est refuse aussi (HTTP 403). Le menage est fait par `sortie.yml` : une seule version publiee par plugin, les autres sont retirees a chaque passage.
 
+- 2026-11-27, Fx. Le centre (`centre.yml`) ecrit sa page dans le texte de la Release `dernier`, pas dans le depot : `main` est protegee, un robot ne peut pas y pousser, et une page dans le depot demanderait une PR a chaque mise a jour.
+
 ## Habillage
 
 - 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.
