@@ -78,6 +78,7 @@ public:
     std::atomic<bool> morphEnabled { false };
     std::atomic<bool> seqMaster { true };   // interrupteur général des séquenceurs
     std::atomic<float> editorScale { 0.0f }; // taille de la fenêtre (0 = jamais ouverte), sauvée avec le projet
+    std::atomic<int> editorW { 0 }, editorH { 0 }; // taille exacte en pixels (0 = inconnue)
     std::atomic<bool> arrangePlaying { false };
     std::atomic<int> arrangeCurrent { -1 };
 
@@ -190,6 +191,7 @@ private:
 
     // indices fréquents
     int idxChaos, idxGlobalMix, idxInGain, idxOutGain, idxFbAmount, idxFbTime, idxMorphX, idxMorphY;
+    double fbAmtS = 0.0, fbDelayS = 0.0; // feedback global lisse (fil audio uniquement)
 
     // undo
     std::vector<juce::ValueTree> undoStack, redoStack;

@@ -64,6 +64,7 @@ public:
         // lissage du grain (~10 ms, en log) : l'automation reste fluide, sans escalier
         const double gCoef = 1.0 - std::exp (-1.0 / (0.010 * sr));
         const double logTarget = std::log (gTarget);
+        const double morphLen = juce::jmax (1.0, 0.015 * sr);
 
         for (int i = 0; i < n; ++i)
         {
@@ -98,15 +99,15 @@ public:
                 // raccord lit l'échantillon courant (= son direct) : aucune rupture.
                 looping = true;
                 oldActive = false;
-                startLoop (cur, (double) t, xf);
+                startLoop (cur, (double) t, xf, G);
             }
             feed (cur);
 
             float l, r;
             if (looping)
             {
-                loopSample (cur, G, l, r);
-                advance (cur, G);
+                loopSample (cur, l, r);
+                advance (cur, gTarget, morphLen);
             }
             else
             {
@@ -118,18 +119,18 @@ public:
                     const float a = (float) juce::jmin (1.0, fadePos / xf);
                     const float gIn = std::sin (0.5f * dsp::pi * a), gOld = std::cos (0.5f * dsp::pi * a);
                     float ol, orr;
-                    loopSample (old, G, ol, orr);
-                    advance (old, G);
+                    loopSample (old, ol, orr);
+                    advance (old, gTarget, morphLen);
                     l = inL * gIn + ol * gOld;
                     r = inR * gIn + orr * gOld;
                     if (a >= 1.0f) oldActive = false;
                 }
             }
 
-            // filtres (coefficients lissés, recalculés tous les 16 échantillons)
+            // filtres (coefficients lissés, recalculés tous les 4 échantillons)
             if (filtCount-- <= 0)
             {
-                filtCount = 15;
+                filtCount = 3;
                 updateFilters (s);
             }
             for (int c = 0; c < 2; ++c)
@@ -179,6 +180,10 @@ private:
         double end = 0;       // fin de la fenêtre figée (index absolu)
         double p = 0;         // position dans la boucle, 0..1
         double xf = 1;        // longueur du raccord (échantillons)
+        double G = 1;         // longueur du grain lu par cette boucle
+        // Changement de grain pendant la boucle : seconde tete (G2, p2) en fondu enchaine,
+        // au lieu de balayer la fenetre (le balayage rapide claquait). mix < 0 : pas de fondu.
+        double G2 = 1, p2 = 0, mix = -1, mixLen = 1;
 
         float at (int c, int64_t abs) const
         {
@@ -198,9 +203,9 @@ private:
     };
 
     /** Copie [fin - grain max, fin] tout de suite, puis la suite (le raccord) au fil des échantillons via feed(). */
-    void startLoop (Loop& lp_, double end, double fade)
+    void startLoop (Loop& lp_, double end, double fade, double G)
     {
-        lp_.end = end; lp_.p = 0.0; lp_.xf = fade;
+        lp_.end = end; lp_.p = 0.0; lp_.xf = fade; lp_.G = G; lp_.mix = -1.0;
         lp_.base = (int64_t) std::floor (end - maxG) - 4;
         lp_.needed = juce::jmin ((int64_t) lp_.d[0].size(), (int64_t) std::ceil (maxG + maxXf) + 12);
         lp_.filled = 0;
@@ -222,9 +227,23 @@ private:
     }
 
     /** Échantillon de la boucle (raccord fondu sur les premiers échantillons). */
-    static void loopSample (const Loop& lp_, double G, float& l, float& r)
+    static void loopSample (const Loop& lp_, float& l, float& r)
     {
-        const double inLoop = lp_.p * G;           // échantillons depuis le début de la boucle
+        headSample (lp_, lp_.G, lp_.p, l, r);
+        if (lp_.mix >= 0.0)
+        {
+            float l2, r2;
+            headSample (lp_, lp_.G2, lp_.p2, l2, r2);
+            const float a = (float) juce::jlimit (0.0, 1.0, lp_.mix / lp_.mixLen);
+            const float gNew = std::sin (0.5f * dsp::pi * a), gOld = std::cos (0.5f * dsp::pi * a);
+            l = l * gOld + l2 * gNew;
+            r = r * gOld + r2 * gNew;
+        }
+    }
+
+    static void headSample (const Loop& lp_, double G, double p, float& l, float& r)
+    {
+        const double inLoop = p * G;           // échantillons depuis le début de la boucle
         const double pos = lp_.end - G + inLoop;
         l = lp_.read (0, pos);
         r = lp_.read (1, pos);
@@ -240,10 +259,28 @@ private:
         }
     }
 
-    static void advance (Loop& lp_, double G)
+    static void step (double& p, double G)
     {
-        lp_.p += 1.0 / G;
-        if (lp_.p >= 1.0) lp_.p -= std::floor (lp_.p);
+        p += 1.0 / G;
+        if (p >= 1.0) p -= std::floor (p);
+    }
+
+    static void advance (Loop& lp_, double gTarget, double morphLen)
+    {
+        step (lp_.p, lp_.G);
+        if (lp_.mix >= 0.0)
+        {
+            step (lp_.p2, lp_.G2);
+            lp_.mix += 1.0;
+            if (lp_.mix >= lp_.mixLen) { lp_.G = lp_.G2; lp_.p = lp_.p2; lp_.mix = -1.0; }
+        }
+        else if (std::abs (std::log (gTarget / lp_.G)) > 0.002)
+        {
+            // nouvelle tete : meme position de lecture si possible (fondu quasi invisible pour un petit ecart)
+            double p2 = 1.0 - lp_.G * (1.0 - lp_.p) / gTarget;
+            p2 -= std::floor (p2);
+            lp_.G2 = gTarget; lp_.p2 = p2; lp_.mix = 0.0; lp_.mixLen = morphLen;
+        }
     }
 
     static double qFor (float reso) { return 1.3065 + (double) juce::jlimit (0.0f, 1.0f, reso) * 4.0; }
@@ -252,10 +289,11 @@ private:
     {
         const float hpT = juce::jlimit (20.0f, 20000.0f, s.hpHz);
         const float lpT = juce::jlimit (20.0f, 20000.0f, s.lpHz);
-        // lissage exponentiel en log-fréquence (pas de zipper)
-        hpSm = std::exp (std::log (hpSm) + 0.15f * (std::log (hpT) - std::log (hpSm)));
-        lpSm = std::exp (std::log (lpSm) + 0.15f * (std::log (lpT) - std::log (lpSm)));
-        resoSm += 0.15f * (juce::jlimit (0.0f, 1.0f, s.reso) - resoSm);
+        // lissage exponentiel en log-fréquence (pas de zipper), ~25 ms : un saut 20 Hz -> 20 kHz ne claque pas
+        const float k = (float) (1.0 - std::exp (-4.0 / (0.025 * sr)));
+        hpSm = std::exp (std::log (hpSm) + k * (std::log (hpT) - std::log (hpSm)));
+        lpSm = std::exp (std::log (lpSm) + k * (std::log (lpT) - std::log (lpSm)));
+        resoSm += k * (juce::jlimit (0.0f, 1.0f, s.reso) - resoSm);
         hpOn = hpSm > 20.5f;
         lpOn = lpSm < 19500.0f && lpSm < sr * 0.45;
         const float q2 = (float) qFor (resoSm);

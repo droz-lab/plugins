@@ -36,6 +36,7 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<float> editorScale { 0.0f };
+    std::atomic<int> editorW { 0 }, editorH { 0 }; // taille exacte en pixels (0 = inconnue)
 
     // pour l'affichage : position dans le pas courant (0..1) et pas courant
     std::atomic<float> uiPhase { 0.0f };

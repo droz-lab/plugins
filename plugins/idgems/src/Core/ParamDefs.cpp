@@ -490,6 +490,35 @@ const Registry& registry()
     return r;
 }
 
+namespace
+{
+    // Interrupteur arrondi a 0 ou 1 des qu'il recoit une valeur : ce que l'hote lit
+    // est ce qui sera sauve et recharge (JUCE garderait sinon 0.37 tel quel).
+    struct SnappedBool final : juce::RangedAudioParameter
+    {
+        SnappedBool (const juce::ParameterID& id, const juce::String& name, bool def)
+            : juce::RangedAudioParameter (id, name), defaultValue (def ? 1.0f : 0.0f), value (defaultValue) {}
+
+        float getValue() const override { return value.load(); }
+        void setValue (float v) override { value.store (v >= 0.5f ? 1.0f : 0.0f); }
+        float getDefaultValue() const override { return defaultValue; }
+        int getNumSteps() const override { return 2; }
+        bool isDiscrete() const override { return true; }
+        bool isBoolean() const override { return true; }
+        juce::String getText (float v, int maxLen) const override { return juce::String (v >= 0.5f ? "On" : "Off").substring (0, juce::jmax (0, maxLen)); }
+        float getValueForText (const juce::String& t) const override
+        {
+            const auto s = t.trim().toLowerCase();
+            return (s == "on" || s == "1" || s == "true" || s == "yes") ? 1.0f : 0.0f;
+        }
+        const juce::NormalisableRange<float>& getNormalisableRange() const override { return range; }
+
+        const float defaultValue;
+        std::atomic<float> value;
+        const juce::NormalisableRange<float> range { 0.0f, 1.0f, 1.0f };
+    };
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
@@ -499,7 +528,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     {
         juce::ParameterID pid { p.id, version };
         if (p.type == PType::Bool)
-            layout.add (std::make_unique<juce::AudioParameterBool> (pid, p.name, p.def > 0.5f));
+            layout.add (std::make_unique<SnappedBool> (pid, p.name, p.def > 0.5f));
         else if (p.type == PType::Choice)
             layout.add (std::make_unique<juce::AudioParameterChoice> (pid, p.name, p.choices, (int) p.def));
         else

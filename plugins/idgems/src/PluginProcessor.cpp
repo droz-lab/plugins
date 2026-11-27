@@ -93,6 +93,7 @@ void IDGemsProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     for (auto& c : capBuf) c.assign ((size_t) (sr * 13.0), 0.0f);
     captureState_ = 0; capMix = 0.0f;
     fbBuf.allocate ((int) (sr * 2.2));
+    fbAmtS = 0.0; fbDelayS = 0.0;
     fbHp.reset();
     dryDelay.prepare (Rack::rackLatency (false) + 16);
     dryDelay.reset();
@@ -195,6 +196,7 @@ void IDGemsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         rack.reset();
         fbBuf.clear();
         fbHp.reset();
+        fbAmtS = 0.0;
         dryDelay.reset();
         output.reset();
         panicMute = (int) (sr * 0.05);
@@ -285,18 +287,30 @@ void IDGemsProcessor::processChunk (float* L, float* R, const float* scL, const 
     }
 
     // ---- boucle de feedback globale (sortie -> entrée)
-    const float fbAmt = bank[idxFbAmount].get();
-    if (fbAmt > 0.0001f)
+    // Quantite et temps lisses (~20 ms) : pas de clic quand on les bouge.
+    // La sortie n'est ecrite dans fbBuf qu'en fin de bloc : on lit donc a (retard - i), et un retard
+    // plus court que le bloc est porte a la taille du bloc (sinon on relirait le meme echantillon).
+    const double fbTarget = (double) bank[idxFbAmount].get();
+    const double dTarget = juce::jlimit (1.0, (double) fbBuf.size - 4.0 - n, bank[idxFbTime].get() * 0.001 * sr);
+    if (fbDelayS <= 0.0) fbDelayS = dTarget;
+    if (fbTarget > 0.0001 || fbAmtS > 0.0001)
     {
-        const double d = juce::jlimit (1.0, (double) fbBuf.size - 4.0, bank[idxFbTime].get() * 0.001 * sr);
+        const double k = std::exp (-1.0 / (0.020 * sr));
         fbHp.set (sr, 60.0f, 0.707f);
         for (int i = 0; i < n; ++i)
         {
-            L[i] += dsp::fastTanh (fbHp.highpass (0, fbBuf.delay (0, d))) * fbAmt;
-            R[i] += dsp::fastTanh (fbHp.highpass (1, fbBuf.delay (1, d))) * fbAmt;
+            fbAmtS = fbTarget + k * (fbAmtS - fbTarget);
+            fbDelayS = dTarget + k * (fbDelayS - dTarget);
+            const double back = juce::jmax (fbDelayS, (double) n) - (double) i;
+            const float amt = (float) fbAmtS;
+            L[i] += dsp::fastTanh (fbHp.highpass (0, fbBuf.delay (0, back))) * amt;
+            R[i] += dsp::fastTanh (fbHp.highpass (1, fbBuf.delay (1, back))) * amt;
         }
+        if (fbAmtS < 1.0e-6) fbAmtS = 0.0;
         fbHp.sanitize();
     }
+    else
+        fbDelayS = dTarget;
 
     // ---- détection de transitoires + suiveur d'enveloppe
     bool transient = false;

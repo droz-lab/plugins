@@ -466,6 +466,7 @@ StretchEditor::StretchEditor (StretchProcessor& p) : AudioProcessorEditor (p), p
 
     // taille mémorisée lue AVANT setResizable (qui déclenche resized())
     const float remembered = proc.editorScale.load();
+    const int rememberedW = proc.editorW.load(), rememberedH = proc.editorH.load();
     setResizable (true, true);
     if (auto* c = getConstrainer())
     {
@@ -473,7 +474,10 @@ StretchEditor::StretchEditor (StretchProcessor& p) : AudioProcessorEditor (p), p
         c->setSizeLimits (baseW / 2, baseH / 2, baseW * 2, baseH * 2);
     }
     const float scale = juce::jlimit (0.5f, 2.0f, remembered > 0.0f ? remembered : 1.0f);
-    setSize ((int) (baseW * scale), (int) (baseH * scale));
+    if (rememberedW > 0 && rememberedH > 0)
+        setSize (juce::jlimit (baseW / 2, baseW * 2, rememberedW), juce::jlimit (baseH / 2, baseH * 2, rememberedH));
+    else
+        setSize ((int) (baseW * scale), (int) (baseH * scale));
     sizeReady = true;
     startTimerHz (30);
 }
@@ -497,7 +501,7 @@ void StretchEditor::resized()
 {
     const float s = (float) getWidth() / (float) baseW;
     content.setTransform (juce::AffineTransform::scale (s));
-    if (sizeReady) proc.editorScale = s;
+    if (sizeReady) { proc.editorScale = s; proc.editorW = getWidth(); proc.editorH = getHeight(); }
 }
 
 void StretchEditor::timerCallback()

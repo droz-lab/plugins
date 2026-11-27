@@ -50,6 +50,7 @@ public:
         boxSum = (double) lookahead; boxPos = 0;
         relEnv = 1.0f;
         grMin = 1.0f;
+        primed = false;
     }
 
     /** Télémétrie pour l'interface (crêtes accumulées, lues puis remises à zéro par l'UI). */
@@ -69,11 +70,14 @@ public:
         mono.set (sr, s.monoFreq);
         x1.set (sr, 120.0f);
         x2.set (sr, 2500.0f);
-        const float outGain = dsp::dbToGain (s.outGainDb);
-        const float drive = dsp::dbToGain (s.clipDriveDb);
-        const float ceiling = dsp::dbToGain (s.ceilingDb);
+        // Cibles des reglages continus : lissees echantillon par echantillon (pas de clic).
+        const double tGain = (double) dsp::dbToGain (s.outGainDb) * (double) dsp::dbToGain (s.clipDriveDb);
+        const double tCeil = (double) dsp::dbToGain (s.ceilingDb);
+        const double tOtt = (double) dsp::dbToGain (s.ottGainDb);
+        const double tDepth = (double) s.ottDepth;
+        if (! primed) { gainS = tGain; ceilS = tCeil; ottS = tOtt; depthS = tDepth; primed = true; }
+        const double sk = std::exp (-1.0 / (0.010 * sr)); // ~10 ms, etat en double (voir PIEGES)
         const float relA = (float) std::exp (-1.0 / (s.releaseMs * 0.001 * sr));
-        const float ottGain = dsp::dbToGain (s.ottGainDb);
         const float tScale = juce::jlimit (0.1f, 10.0f, s.ottTime);
         const float attA[3] { (float) std::exp (-1.0 / (0.0047 * tScale * sr)), (float) std::exp (-1.0 / (0.0021 * tScale * sr)), (float) std::exp (-1.0 / (0.0011 * tScale * sr)) };
         const float relB[3] { (float) std::exp (-1.0 / (0.282 * tScale * sr)), (float) std::exp (-1.0 / (0.141 * tScale * sr)), (float) std::exp (-1.0 / (0.059 * tScale * sr)) };
@@ -81,6 +85,11 @@ public:
         float clipPk = 0.0f, bandLvl[3] { -90.0f, -90.0f, -90.0f }, bandGr[3] { 0.0f, 0.0f, 0.0f };
         for (int i = 0; i < n; ++i)
         {
+            gainS = tGain + sk * (gainS - tGain);
+            ceilS = tCeil + sk * (ceilS - tCeil);
+            ottS = tOtt + sk * (ottS - tOtt);
+            depthS = tDepth + sk * (depthS - tDepth);
+            const float outDrive = (float) gainS, ceiling = (float) ceilS, ottGain = (float) ottS, ottDepth = (float) depthS;
             float v[2] { L[i], R[i] };
             // 1. passe-haut anti-sub + anti-DC
             for (int k = 0; k < 2; ++k) v[k] = dc.process (k, hp.highpass (k, v[k]));
@@ -93,7 +102,7 @@ public:
                 v[0] = m + hi[0]; v[1] = m + hi[1];
             }
             // 3. OTT (3 bandes, compression haute et basse)
-            if (s.ottDepth > 0.001f)
+            if (ottDepth > 0.001f)
             {
                 for (int k = 0; k < 2; ++k)
                 {
@@ -112,15 +121,15 @@ public:
                         if (db < -40.0f && db > -78.0f) gdb += juce::jmin (24.0f, (-40.0f - db) * (1.0f - 1.0f / 3.0f) * s.ottUp);
                         sum += b[j] * dsp::dbToGain (gdb + 9.0f);
                         bandLvl[j] = juce::jmax (bandLvl[j], db);
-                        if (std::abs (gdb * s.ottDepth) > std::abs (bandGr[j])) bandGr[j] = gdb * s.ottDepth;
+                        if (std::abs (gdb * ottDepth) > std::abs (bandGr[j])) bandGr[j] = gdb * ottDepth;
                     }
-                    v[k] = v[k] + (sum * ottGain - v[k]) * s.ottDepth;
+                    v[k] = v[k] + (sum * ottGain - v[k]) * ottDepth;
                 }
             }
             // 4. gain de sortie + soft clip
             for (int k = 0; k < 2; ++k)
             {
-                float x = v[k] * outGain * drive;
+                float x = v[k] * outDrive;
                 clipPk = juce::jmax (clipPk, std::abs (x));
                 float a = std::abs (x);
                 if (a > 0.7f) x = std::copysign (0.7f + 0.3f * dsp::fastTanh ((a - 0.7f) / 0.3f), x);
@@ -195,5 +204,7 @@ private:
     double boxSum = 0.0;
     int boxPos = 0;
     float relEnv = 1.0f, grMin = 1.0f;
+    double gainS = 1.0, ceilS = 1.0, ottS = 1.0, depthS = 0.0;
+    bool primed = false;
 };
 } // namespace idg
