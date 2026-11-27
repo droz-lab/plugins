@@ -2,6 +2,13 @@
 
 Atelier commun du collectif Droz : nos plugins audio (VST3, Windows et Mac), compiles et verifies automatiquement, avec les memes regles pour tous nos Claude.
 
+## Telecharger les plugins
+
+**[Derniere version de chaque plugin](https://github.com/droz-lab/plugins/releases/tag/dernier)**
+
+- Windows : telecharge `<Nom>-Setup.exe` et double-clique. Il pose le plugin dans le dossier VST3, rien d'autre a faire. Windows previent que l'editeur est inconnu (nos plugins ne sont pas signes) : "Informations complementaires", puis "Executer quand meme". Ferme ton DAW avant de remplacer une version.
+- Mac : dans le Terminal, `curl -fsSL https://raw.githubusercontent.com/droz-lab/plugins/main/tools/installer.sh | bash -s -- <dossier>`, ou le `-Mac.zip` a la main (voir plus bas).
+
 ## Demarrer un plugin
 
 1. Ouvre Claude Code sur ce depot.

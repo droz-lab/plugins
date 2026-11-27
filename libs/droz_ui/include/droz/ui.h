@@ -1,7 +1,7 @@
 // Habillage commun des plugins Droz.
-// Direction : celle du logo Droz Recordz (Drive, dossier Charte Graphique) : blanc sur noir,
-// capitales larges et espacees, traits fins, aucune couleur d'accent pour l'instant.
-// Un plugin peut ajouter UNE couleur a lui (courbes, visuels), le reste reste monochrome.
+// Direction : celle de l'artwork Droz Recordz (Drive, dossier Charte Graphique) : fond ardoise bleu-noir,
+// logo blanc en capitales larges et espacees, coulees rouge-orange. Donc : sombre, texte blanc glace,
+// traits fins, et le rouge-orange comme seule couleur vive (valeurs, tete de lecture, etat actif).
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -10,11 +10,12 @@ namespace droz::ui
 {
 namespace colours
 {
-inline const juce::Colour background { 0xff0a0a0c };
-inline const juce::Colour panel { 0xff131316 };
-inline const juce::Colour line { 0xff2c2c33 };
-inline const juce::Colour text { 0xfff4f4f4 };
-inline const juce::Colour dim { 0xff8b8b94 };
+inline const juce::Colour background { 0xff0b1219 }; // bleu-noir du fond de la toile
+inline const juce::Colour panel { 0xff1a2732 };      // ardoise sombre
+inline const juce::Colour line { 0xff283c47 };       // ardoise claire : filets, pistes des potards
+inline const juce::Colour text { 0xffedf3f6 };       // blanc glace du logo
+inline const juce::Colour dim { 0xff8fa1ad };
+inline const juce::Colour accent { 0xfff0431f };     // rouge-orange des coulees
 } // namespace colours
 
 /** Capitales espacees, comme le logo. A utiliser pour les titres et les libelles courts. */
@@ -51,7 +52,7 @@ inline juce::Rectangle<int> drawHeader (juce::Graphics& g, juce::Rectangle<int> 
     return area;
 }
 
-/** Potards en arc fin, zones de texte sans cadre, tout en monochrome. */
+/** Potards en arc fin (valeur en rouge-orange), zones de texte sans cadre. */
 class LookAndFeel : public juce::LookAndFeel_V4
 {
 public:
@@ -89,12 +90,13 @@ public:
 
         juce::Path value;
         value.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
-        g.setColour (colours::text);
+        g.setColour (colours::accent);
         g.strokePath (value, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         // Repere : un trait fin du centre vers l'arc.
         const juce::Point<float> tip (centre.x + (radius - 6.0f) * std::sin (angle), centre.y - (radius - 6.0f) * std::cos (angle));
         const juce::Point<float> base (centre.x + radius * 0.45f * std::sin (angle), centre.y - radius * 0.45f * std::cos (angle));
+        g.setColour (colours::text);
         g.drawLine ({ base, tip }, 2.0f);
     }
 
