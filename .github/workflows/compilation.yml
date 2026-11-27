@@ -188,9 +188,13 @@ jobs:
         shell: pwsh
         run: |
           foreach ($setup in Get-ChildItem dist -Filter *-Setup.exe) {
-            $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-            if ($p.ExitCode -ne 0) { Write-Host "$($setup.Name) : code $($p.ExitCode)"; exit 1 }
+            $journal = Join-Path $env:RUNNER_TEMP ($setup.BaseName + ".log")
+            $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$journal`"" -Wait -PassThru
+            Write-Host "$($setup.Name) : code $($p.ExitCode)"
+            if (Test-Path $journal) { Get-Content $journal | Select-Object -Last 40 }
+            if ($p.ExitCode -ne 0) { exit 1 }
           }
+          Get-ChildItem (Join-Path $env:CommonProgramFiles "VST3") -Recurse -Depth 3 -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           foreach ($vst in (Get-ChildItem build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.Parent.Name -eq "VST3" })) {
             $pose = Join-Path $env:CommonProgramFiles "VST3\$($vst.Name)\Contents\x86_64-win\$($vst.Name)"
             if (-not (Test-Path $pose)) { Write-Host "absent apres installation : $pose"; exit 1 }
