@@ -35,6 +35,7 @@ if(DROZ_BUILD_PLUGINS)
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(JUCE)
 
+  add_subdirectory(libs/droz_ui)
   include(cmake/DrozPlugin.cmake)
   file(GLOB droz_metas CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/plugins/*/plugin.json")
   foreach(meta IN LISTS droz_metas)

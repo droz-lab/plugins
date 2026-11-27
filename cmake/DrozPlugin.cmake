@@ -61,6 +61,7 @@ function(droz_add_plugin dir)
   target_link_libraries(${cible}
     PRIVATE
       droz::dsp
+      droz::ui
       juce::juce_audio_utils
       juce::juce_dsp
     PUBLIC
