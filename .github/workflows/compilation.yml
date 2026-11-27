@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Registre des plugins (codes uniques)
+      - name: Registre des plugins (codes uniques) et fiches (FICHE.md, docs/METHODE.md)
         run: python3 tools/droz.py verifier
       - name: Tests de libs/ (sans JUCE)
         run: |
@@ -115,10 +115,25 @@ jobs:
       - name: Compilation
         run: cmake --build build --config Release --parallel 4
 
-      - name: Tests communs (son fini, silence, etat, clics, interface)
+      - name: Tests communs (son fini, silence, etat, clics, interface, temps reel, transport, reprise)
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then lance="xvfb-run -a"; else lance=""; fi
           $lance ctest --test-dir build -C Release --output-on-failure
+
+      - name: Fiche et plugin d'accord (les reglages de FICHE.md existent dans le plugin)
+        if: runner.os == 'Linux'
+        env:
+          LISTE: ${{ needs.preparer.outputs.liste }}
+        run: |
+          echec=0
+          for dossier in ${LISTE//;/ }; do
+            case "$dossier" in _*) continue ;; esac
+            cible=$(python3 -c "import json,sys; print(json.load(open('plugins/'+sys.argv[1]+'/plugin.json'))['cible'])" "$dossier")
+            outil=$(find build -type f -name "${cible}_outil" | head -n 1)
+            "$outil" params > "$RUNNER_TEMP/$dossier-params.txt"
+            python3 tools/droz.py fiche-params "$dossier" "$RUNNER_TEMP/$dossier-params.txt" || echec=1
+          done
+          exit $echec
 
       - name: pluginval
         run: |
@@ -128,9 +143,22 @@ jobs:
           trouve=0
           while IFS= read -r vst; do
             trouve=1
-            echo "::group::pluginval $vst"
-            $lance "${{ matrix.binaire }}" --strictness-level 5 --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"
+            # Niveau exige : 5 en chantier (0.x), 10 au palier pro (1.0.0 et plus). Voir docs/METHODE.md.
+            niveau=$(python3 tools/droz.py niveau "$(basename "$vst" .vst3)")
+            echo "::group::pluginval niveau $niveau : $vst"
+            $lance "${{ matrix.binaire }}" --strictness-level "$niveau" --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"
             echo "::endgroup::"
+            # En chantier : le niveau 10 tourne quand meme sous Linux, pour savoir ou on en est. Il ne bloque pas.
+            if [ "$niveau" != "10" ] && [ "$RUNNER_OS" = "Linux" ]; then
+              echo "::group::pluginval niveau 10 (pour information) : $vst"
+              if $lance "${{ matrix.binaire }}" --strictness-level 10 --validate-in-process --skip-gui-tests --timeout-ms 600000 --validate "$vst"; then
+                echo "pluginval niveau 10 : $(basename "$vst") passe deja" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "::warning title=pluginval niveau 10::$(basename "$vst") ne passe pas encore le niveau 10, exige au palier pro (1.0.0)"
+                echo "pluginval niveau 10 : $(basename "$vst") ne passe pas encore (exige a la 1.0.0)" >> "$GITHUB_STEP_SUMMARY"
+              fi
+              echo "::endgroup::"
+            fi
           done < <(find build -type d -name '*.vst3' -path '*/VST3/*' -prune)
           if [ "$trouve" = 0 ]; then echo "aucun .vst3 produit"; exit 1; fi
 

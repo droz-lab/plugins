@@ -5,8 +5,20 @@ Depot commun a plusieurs personnes et plusieurs Claude. Ces regles gardent le de
 ## Debut de session
 
 1. `python tools/droz.py liste` : les plugins et leurs responsables.
-2. Lis `docs/PIEGES.md`, `docs/HABILLAGE.md` et le `NOTES.md` du plugin concerne.
+2. Lis `docs/METHODE.md`, `docs/PIEGES.md`, `docs/HABILLAGE.md`, puis le `FICHE.md` et le `NOTES.md` du plugin concerne.
 3. Demande a la personne son prenom et son plugin si ce n'est pas clair. Ne touche pas au plugin d'un autre sans qu'il l'ait demande.
+
+## Avant de coder : la fiche
+
+Meme si la demande tient en une phrase, aucun code avant que `plugins/<dossier>/FICHE.md` soit remplie. Protocole complet : `docs/METHODE.md`. En bref :
+
+1. Reformule l'idee en une phrase, fais-la confirmer.
+2. Remplis la fiche toi-meme avec ce qui a ete dit. Ce que tu ne sais pas, tu le supposes et tu l'ecris `SUPPOSE : ...` dans "Questions ouvertes".
+3. Pose au plus trois questions a choix, seulement sur ce qui change le son ou les reglages en facade. Sans reponse, garde tes suppositions et avance.
+4. Resume la fiche en cinq lignes a la personne, puis code. Le son d'abord, l'interface ensuite.
+5. Le plugin change : la fiche change dans la meme PR. Le Verdict refuse une fiche absente, incomplete, ou dont les reglages n'existent pas dans le plugin.
+
+Plugin existant : relis sa fiche avant de toucher au code. Pas de fiche : ecris-la d'abord.
 
 ## Creer un plugin
 
@@ -30,10 +42,10 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 
 ## Avant de dire "c'est fait"
 
-1. Les tests communs passent (`ctest`, ou le run Actions) : sortie finie, retour au silence, etat sauvegarde et recharge, pas de clic, interface qui s'ouvre et se rouvre.
-2. pluginval passe (niveau 5).
+1. Les tests communs passent (`ctest`, ou le run Actions) : sortie finie, retour au silence, etat sauvegarde et recharge, pas de clic, interface qui s'ouvre et se rouvre, aucune allocation dans `processBlock`, transport (arret, boucle, sauts de tempo), reprise a une autre frequence.
+2. pluginval passe : niveau 5 en chantier (version 0.x), niveau 10 au palier pro (1.0.0 et plus), ou toute alerte des tests communs bloque aussi. Passer en 1.0.0 se decide avec la liste de `docs/METHODE.md`.
 3. Tu as produit une capture de l'interface (regarde-la toi-meme, compare-la a `docs/habillage.png`, puis envoie-la : la personne est peut-etre sur son telephone) et au moins un rendu WAV sec + traite, et tu dis quoi ecouter et ou le telecharger.
-4. `plugins/<dossier>/NOTES.md` est a jour. Publier = monter `version` dans `plugin.json`, relancer `python tools/droz.py vitrine` (tableau du README) et fusionner : la sortie part toute seule, rien d'autre a faire ni a proposer.
+4. `plugins/<dossier>/FICHE.md` decrit le plugin tel qu'il est, `NOTES.md` est a jour. Publier = monter `version` dans `plugin.json`, relancer `python tools/droz.py vitrine` (tableau du README) et fusionner : la sortie part toute seule, rien d'autre a faire ni a proposer.
 
 ## Regles de code
 
@@ -54,7 +66,9 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 
 ## Memoire
 
-- `plugins/<dossier>/NOTES.md` : memoire du plugin (but, etat, decisions, ce qui a ete essaye et abandonne). A mettre a jour a chaque session.
+- `plugins/<dossier>/FICHE.md` : ce que le plugin doit faire (intention, signal, reglages, cas limites). Ecrite avant le code, elle fait foi.
+- `plugins/<dossier>/NOTES.md` : memoire du plugin (etat, decisions, ce qui a ete essaye et abandonne). A mettre a jour a chaque session.
+- `docs/METHODE.md` : le chemin d'un plugin, les deux paliers, les choix techniques et leurs sources.
 - `docs/PIEGES.md` : lecons utiles a tous. Ajout libre, une entree courte, datee, avec le prenom.
 - `carnet/<prenom>/` : reflexions et idees de chacun, un fichier par sujet. Chacun n'ecrit que dans son dossier.
 - Ce fichier : regles stables. Il ne grossit pas. Modification par PR `commun:` uniquement.
