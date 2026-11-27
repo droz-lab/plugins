@@ -1,6 +1,32 @@
-# droz-lab / plugins
+<h1 align="center">DROZ LAB</h1>
 
-Atelier commun du collectif Droz : nos plugins audio (VST3, Windows et Mac), compiles et verifies automatiquement, avec les memes regles pour tous nos Claude.
+<p align="center">Les plugins audio du collectif Droz. VST3, Windows et Mac, faits a plusieurs.</p>
+
+<p align="center">
+  <a href="https://github.com/droz-lab/plugins/releases/tag/dernier"><b>Telecharger</b></a> ·
+  <a href="#les-plugins">Les plugins</a> ·
+  <a href="#demarrer-un-plugin">Participer</a> ·
+  <a href="docs/HABILLAGE.md">Habillage</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/droz-lab/plugins/actions/workflows/compilation.yml"><img alt="Compilation" src="https://github.com/droz-lab/plugins/actions/workflows/compilation.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/droz-lab/plugins/releases"><img alt="Derniere version" src="https://img.shields.io/github/v/release/droz-lab/plugins?label=version&color=F0431F"></a>
+</p>
+
+<p align="center"><img alt="L'habillage commun des plugins Droz" src="docs/habillage.png" width="640"></p>
+
+Atelier commun du collectif Droz : nos plugins sont compiles et verifies automatiquement, avec les memes regles pour tous nos Claude.
+
+## Les plugins
+
+<!-- vitrine:debut -->
+| Plugin | Ce qu'il fait | Version | Responsable |
+|---|---|---|---|
+| [Droz Premier Jet](plugins/premier-jet/NOTES.md) | Plugin de test de l'atelier : un gain, et le nom de chaque membre affiche dans l'interface. | 0.1.0 | equipe |
+<!-- vitrine:fin -->
+
+Ce tableau se refait tout seul : `python tools/droz.py vitrine`.
 
 ## Telecharger les plugins
 
@@ -53,7 +79,7 @@ A la main :
 | `plugins/<dossier>/` | Un plugin : `plugin.json` (identite), `src/`, `NOTES.md` (memoire du plugin), `boucles/` (WAV courts pour les rendus) | Son responsable |
 | `plugins/_modele/` | Le point de depart, compile a chaque changement commun | PR relue |
 | `libs/droz_dsp/` | Briques DSP partagees, C++ pur, testees | PR relue |
-| `libs/droz_ui/` | Habillage commun des interfaces (couleurs, potards, en-tete) | PR relue |
+| `libs/droz_ui/` | Habillage commun des interfaces, regle dans `docs/HABILLAGE.md` | PR relue |
 | `carnet/<prenom>/` | Reflexions et idees de chacun | Chacun chez soi |
 | `tools/droz.py` | Creer un plugin, verifier le registre | PR relue |
 | `tools/outil/` | Tests communs, rendu WAV et capture d'interface sans DAW | PR relue |
@@ -65,7 +91,7 @@ A la main :
 1. Personne ne pousse sur `main`. Une branche par sujet (`<prenom>/<dossier>-<sujet>`), une PR, le controle **Verdict** au vert.
 2. Chacun est chez lui dans son dossier de plugin. Tout ce qui est commun passe par une PR relue par un autre membre.
 3. L'identite d'un plugin sorti ne change plus : `code`, `cible`, identifiants des parametres. Sinon les projets des autres cassent.
-4. Une lecon qui servira aux autres : une ligne dans `docs/PIEGES.md`.
+4. Une lecon qui servira aux autres : une ligne dans `docs/PIEGES.md`. Une idee ou un souci : onglet **Issues**.
 5. Pas de secret, pas de sample sous droits, pas de binaire lourd dans le depot.
 
 ## Publier une version

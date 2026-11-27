@@ -1,0 +1,27 @@
+name: Souci
+description: Un plugin plante, sonne mal ou s'affiche mal
+title: "Souci : "
+labels: ["souci"]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin et version
+      description: La version est en haut a droite de la fenetre du plugin.
+      placeholder: Droz Premier Jet 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: machine
+    attributes:
+      label: DAW et systeme
+      placeholder: Ableton Live 12, Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: quoi
+    attributes:
+      label: Ce qui se passe
+      description: Ce que tu as fait, ce que tu attendais, ce qui est arrive. Une capture ou un export audio aide beaucoup.
+    validations:
+      required: true
