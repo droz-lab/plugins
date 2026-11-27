@@ -82,5 +82,10 @@ function(droz_add_plugin dir)
   target_include_directories(${cible}_outil PRIVATE
     $<TARGET_PROPERTY:${cible},INCLUDE_DIRECTORIES>)
   set_target_properties(${cible}_outil PROPERTIES FOLDER "plugins/${dossier}")
-  add_test(NAME ${dossier}_tests COMMAND ${cible}_outil test)
+  # Palier pro (version 1.0.0 et plus, docs/METHODE.md) : toute alerte des tests communs devient un echec.
+  set(palier "")
+  if(version VERSION_GREATER_EQUAL "1.0.0")
+    set(palier "--pro")
+  endif()
+  add_test(NAME ${dossier}_tests COMMAND ${cible}_outil test ${palier})
 endfunction()

@@ -7,11 +7,13 @@ name: Sortie
 #   - pousser une etiquette <dossier>-v<version>.
 # Resultat : une Release <dossier>-v<version> (installeur Windows, zips Mac, Linux, Windows)
 # et l'installeur Windows sur la page fixe "dernier", celle que pointe le README.
+# Menage : une seule version publiee par plugin, celle de main. Les versions depassees et celles
+# d'un plugin retire ou renomme sont supprimees (Release et etiquette) a chaque passage.
 
 on:
   push:
     branches: [main]
-    paths: ["plugins/*/plugin.json"]
+    paths: ["plugins/*/plugin.json", ".github/workflows/sortie.yml"]
     tags: ["*-v[0-9]*"]
   workflow_dispatch:
     inputs:
@@ -126,3 +128,27 @@ jobs:
               *) echo "retire de la page dernier : $fichier"; gh release delete-asset dernier "$fichier" --yes ;;
             esac
           done
+
+  menage:
+    name: Menage des anciennes versions
+    # Tourne meme s'il n'y avait rien a publier, jamais si une publication a echoue.
+    needs: [lire, publier]
+    if: always() && needs.lire.result == 'success' && (needs.publier.result == 'success' || needs.publier.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # supprimer des Releases et leurs etiquettes
+    steps:
+      - uses: actions/checkout@v4
+      - name: Une seule version par plugin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name' > publiees.txt
+          python3 tools/droz.py depassees publiees.txt > depassees.txt
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            echo "supprime : $tag"
+            gh release delete "$tag" --cleanup-tag --yes
+            echo "Version retiree : $tag" >> "$GITHUB_STEP_SUMMARY"
+          done < depassees.txt
+          [ -s depassees.txt ] || echo "rien a retirer"

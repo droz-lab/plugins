@@ -40,6 +40,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 - 2026-11-27, Fx, verifie. Les Artifacts d'Actions demandent un compte GitHub et expirent (30 jours ici). Pour donner un plugin a quelqu'un : une Release (etiquette `<dossier>-v<version>`).
 - 2026-11-27, Fx, a retenir. Deux plugins avec le meme couple (code fabricant, code) sont confondus par le DAW. `tools/droz.py verifier` bloque les doublons. Un plugin deja sorti ailleurs garde ses codes d'origine via `fabricant` et `code_fabricant` dans son `plugin.json`.
 
+- 2026-11-27, Fx, verifie. Depuis une session distante, supprimer une Release ou une etiquette est refuse aussi (HTTP 403). Le menage est fait par `sortie.yml` : une seule version publiee par plugin, les autres sont retirees a chaque passage.
+
 ## Habillage
 
 - 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.

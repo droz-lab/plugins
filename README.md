@@ -26,4 +26,4 @@ Zips de chaque version : [Releases](https://github.com/droz-lab/plugins/releases
 
 </details>
 
-[Participer](docs/ATELIER.md) · [Habillage](docs/HABILLAGE.md) · [Issues](https://github.com/droz-lab/plugins/issues)
+[Participer](docs/ATELIER.md) · [Methode](docs/METHODE.md) · [Habillage](docs/HABILLAGE.md) · [Issues](https://github.com/droz-lab/plugins/issues)
