@@ -153,10 +153,10 @@ jobs:
             gh release upload dernier recu/centre-Windows/Droz-Software-Center-Setup.exe --clobber
           fi
 
-          # Menage : on retire de la page tout ce qui n'est pas l'installeur d'un plugin present dans main,
-          # l'installeur du Droz Software Center ou son catalogue.
-          attendus=$(python3 -c "import json,glob; print(' '.join(json.load(open(f))['nom'].replace(' ','-')+'-Setup.exe' for f in glob.glob('plugins/*/plugin.json')))")
-          attendus="$attendus Droz-Software-Center-Setup.exe catalogue.json"
+          # Menage : on retire de la page tout ce qui n'y a pas sa place (python tools/droz.py attendus) :
+          # installeurs des plugins de main, essais des chantiers en cours, Droz Software Center, catalogue.
+          gh release download dernier --pattern essais.json --output essais.json 2> /dev/null || echo '{}' > essais.json
+          attendus=$(python3 tools/droz.py attendus --essais essais.json | tr '\n' ' ')
           for fichier in $(gh release view dernier --json assets --jq '.assets[].name'); do
             case " $attendus " in
               *" $fichier "*) ;;

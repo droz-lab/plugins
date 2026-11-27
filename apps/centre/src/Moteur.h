@@ -23,6 +23,8 @@ struct Plugin
 {
     // Catalogue
     juce::String dossier, nom, auteur, description, version, build, installeur, page;
+    juce::String fiche;         // l'intention de sa FICHE.md, vide tant qu'elle n'est pas ecrite
+    juce::StringArray reglages; // noms des reglages en facade
     bool essai = false;          // plugin en chantier, publie automatiquement a chaque Verdict vert
     bool dansCatalogue = false;  // faux : trouve dans le dossier VST3 mais absent du catalogue
     // Sur cette machine

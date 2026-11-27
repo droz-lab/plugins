@@ -88,20 +88,16 @@ def main() -> int:
         # Catalogue et dossier VST3 d'exemple : tous les etats d'une ligne sur une seule capture.
         depot = "https://github.com/droz-lab/plugins"
         exemple = catalogue(
-            [plugin("Droz Exemple Un", "1.2.0", "", "absent.exe", auteur="Fx", description="Exemple : plugin publié, installé et à jour."),
-             plugin("Droz Exemple Deux", "0.4.0", "", "absent.exe", auteur="Zomban", description="Exemple : plugin publié, une version plus récente existe."),
-             plugin("Droz Exemple Trois", "0.2.0", "", "absent.exe", auteur="YoY", description="Exemple : plugin publié, pas encore installé."),
-             plugin("Droz Exemple Quatre", "0.1.0", "a1b2c3d", "absent.exe", auteur="YoY", etat="essai", description="Exemple : chantier à l'essai, installé, build plus récent."),
+            [plugin("Droz Exemple Un", "1.2.0", "", "absent.exe", auteur="Fx", description="Exemple.",
+                    fiche="Exemple : plugin publié, installé et à jour. La fiche dit en deux phrases ce que fait le plugin et à quel moment il sert.",
+                    reglages=["Temps", "Forme", "Profondeur", "Mélange"]),
+             plugin("Droz Exemple Deux", "0.4.0", "", "absent.exe", auteur="Zomban", description="Exemple.",
+                    fiche="Exemple : plugin publié, une version plus récente existe. Un clic sur Mettre à jour suffit.",
+                    reglages=["Seuil", "Relâchement", "Sortie"]),
+             plugin("Droz Exemple Trois", "0.2.0", "", "absent.exe", auteur="YoY", description="Exemple : plugin publié, pas encore installé, sans fiche : sa description courte s'affiche."),
+             plugin("Droz Exemple Quatre", "0.1.0", "a1b2c3d", "absent.exe", auteur="YoY", etat="essai", description="Exemple.",
+                    fiche="Exemple : chantier à l'essai, installé, et une compilation plus récente existe.", reglages=["Grain", "Taille"]),
              plugin("Droz Exemple Cinq", "0.1.0", "e4f5a6b", "absent.exe", auteur="Zomban", etat="essai", description="Exemple : chantier à l'essai, pas encore installé.")],
-            {"pr": [{"numero": 21, "titre": "exemple : nouveau plugin", "auteur": "membre-un", "verdict": "vert", "brouillon": False, "url": f"{depot}/pulls"},
-                    {"numero": 22, "titre": "exemple : correction d'un clic", "auteur": "membre-deux", "verdict": "rouge", "brouillon": True, "url": f"{depot}/pulls"}],
-             "fiches_a_ecrire": ["Droz Exemple Cinq"],
-             "message": "Message d'exemple. Je suis <fx | yoy | zomban>.",
-             "liens": [{"nom": "Méthode", "url": f"{depot}/blob/main/docs/METHODE.md"},
-                       {"nom": "Habillage", "url": f"{depot}/blob/main/docs/HABILLAGE.md"},
-                       {"nom": "Pièges", "url": f"{depot}/blob/main/docs/PIEGES.md"},
-                       {"nom": "Idée de plugin", "url": f"{depot}/issues/new?template=idee-de-plugin.yml"},
-                       {"nom": "Page de l'atelier", "url": f"{depot}/releases/tag/dernier"}]},
             centre="9.9.9")
         ecrire(sortie / "exemple.json", exemple)
         vst3 = sortie / "vst3-exemple"

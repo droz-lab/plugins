@@ -1,5 +1,6 @@
-// La fenetre du centre : onglet Plugins (installer, mettre a jour, desinstaller) et onglet Atelier.
-// Habillage : droz::ui uniquement (docs/HABILLAGE.md). Tout travail long passe par un fil a part, un a la fois.
+// La fenetre du centre : une seule page, la liste des plugins. Pour chacun : sa fiche en clair, sa version,
+// un bouton. Habillage : droz::ui uniquement (docs/HABILLAGE.md). Tout travail long passe par un fil a part,
+// un a la fois.
 #pragma once
 
 #include "Moteur.h"
@@ -16,11 +17,11 @@ namespace centre
 namespace ui = droz::ui;
 
 //==============================================================================
-/** Une ligne de l'onglet Plugins. */
+/** Un plugin : nom, auteur, version, fiche, etat, bouton. */
 class Ligne final : public juce::Component
 {
 public:
-    static constexpr int hauteur = 64, hauteurTitre = 30;
+    static constexpr int hauteurTitre = 34;
 
     std::function<void (const juce::String& nom, bool installer)> surAction;
 
@@ -52,7 +53,10 @@ public:
         repaint();
     }
 
-    int hauteurVoulue() const { return hauteur + (titre.isNotEmpty() ? hauteurTitre : 0); }
+    int hauteurVoulue() const
+    {
+        return 112 + (plugin.reglages.isEmpty() ? 0 : 20) + (titre.isNotEmpty() ? hauteurTitre : 0);
+    }
 
     void paint (juce::Graphics& g) override
     {
@@ -60,49 +64,65 @@ public:
         if (titre.isNotEmpty())
         {
             g.setColour (ui::colours::dim);
-            g.setFont (ui::caps (9.0f));
-            g.drawText (ui::upper (titre), zone.removeFromTop (hauteurTitre).withTrimmedTop (10), juce::Justification::centredLeft);
+            g.setFont (ui::caps (10.0f));
+            g.drawText (ui::upper (titre), zone.removeFromTop (hauteurTitre).withTrimmedTop (12), juce::Justification::centredLeft);
         }
         g.setColour (ui::colours::panel);
         g.fillRoundedRectangle (zone.toFloat(), ui::metrics::corner);
 
-        auto texte = zone.reduced (ui::metrics::gap, 0).withTrimmedRight (largeurDroite);
-        auto haut = texte.withHeight (20).withY (zone.getY() + 12);
-        auto nom = plugin.nom.startsWithIgnoreCase ("droz ") ? plugin.nom.substring (5) : plugin.nom;
-        const auto police = ui::caps (12.0f);
+        auto texte = zone.reduced (marge, 0).withTrimmedRight (largeurDroite + marge);
+        int y = zone.getY() + 14;
+
+        // Nom, et l'etiquette des chantiers.
+        auto haut = texte.withY (y).withHeight (24);
+        const auto nom = plugin.nom.startsWithIgnoreCase ("droz ") ? plugin.nom.substring (5) : plugin.nom;
+        const auto police = ui::caps (15.0f);
         g.setFont (police);
         g.setColour (ui::colours::text);
-        const int largeurNom = juce::jmin (haut.getWidth() - 60, juce::roundToInt (juce::GlyphArrangement::getStringWidth (police, ui::upper (nom))) + 4);
+        const int largeurNom = juce::jmin (haut.getWidth() - 70, juce::roundToInt (juce::GlyphArrangement::getStringWidth (police, ui::upper (nom))) + 6);
         g.drawText (ui::upper (nom), haut.removeFromLeft (largeurNom), juce::Justification::centredLeft, true);
         if (plugin.essai)
         {
-            // Plugin en chantier : une etiquette discrete, pas une couleur.
-            const auto etiquette = haut.removeFromLeft (54).withTrimmedLeft (8).withSizeKeepingCentre (46, 16).toFloat();
+            const auto etiquette = haut.removeFromLeft (64).withTrimmedLeft (10).withSizeKeepingCentre (52, 18).toFloat();
             g.setColour (ui::colours::dim);
             g.drawRoundedRectangle (etiquette.reduced (0.5f), ui::metrics::corner, 1.0f);
-            g.setFont (ui::caps (8.0f));
+            g.setFont (ui::caps (9.0f));
             g.drawText ("ESSAI", etiquette, juce::Justification::centred);
         }
+        y += 26;
 
-        auto bas = texte.withHeight (18).withY (zone.getY() + 34);
-        g.setFont (ui::body (12.0f));
-        if (resultat.message.isNotEmpty() && ! resultat.ok)
-        {
-            g.setColour (ui::colours::text);
-            g.drawText (resultat.message, bas, juce::Justification::centredLeft, true);
-        }
-        else
+        // Auteur et version.
+        juce::StringArray qui;
+        if (plugin.auteur.isNotEmpty())
+            qui.add ("par " + plugin.auteur);
+        if (plugin.dansCatalogue)
+            qui.add ("version " + plugin.version);
+        g.setColour (ui::colours::dim);
+        g.setFont (ui::body (13.0f));
+        g.drawText (qui.joinIntoString ("  -  "), texte.withY (y).withHeight (18), juce::Justification::centredLeft, true);
+        y += 24;
+
+        // La fiche en clair, ou ce qui vient de se passer si ca a rate.
+        const bool echec = resultat.message.isNotEmpty() && ! resultat.ok;
+        const auto fiche = echec ? resultat.message
+                         : plugin.fiche.isNotEmpty() ? plugin.fiche
+                         : plugin.dansCatalogue ? plugin.description
+                         : avecCatalogue ? fr ("Absent du catalogue.") : juce::String();
+        g.setColour (ui::colours::text);
+        g.setFont (ui::body (14.0f));
+        g.drawFittedText (fiche, texte.withY (y).withHeight (38), juce::Justification::topLeft, 2, 1.0f);
+        y += 42;
+
+        if (! plugin.reglages.isEmpty())
         {
             g.setColour (ui::colours::dim);
-            const auto qui = plugin.auteur.isNotEmpty() ? "par " + plugin.auteur : juce::String();
-            const auto quoi = plugin.dansCatalogue ? plugin.description : avecCatalogue ? fr ("absent du catalogue") : juce::String();
-            g.drawText (qui + (qui.isNotEmpty() && quoi.isNotEmpty() ? "  -  " : "") + quoi, bas, juce::Justification::centredLeft, true);
+            g.setFont (ui::body (13.0f));
+            g.drawText (fr ("Réglages : ") + plugin.reglages.joinIntoString (", "), texte.withY (y).withHeight (18), juce::Justification::centredLeft, true);
         }
 
-        // Etat et versions, a gauche des boutons.
-        auto etatZone = zone.withTrimmedRight (largeurBoutons + ui::metrics::gap).removeFromRight (largeurEtat);
+        // Etat, au-dessus du bouton.
         const auto etat = plugin.etat();
-        juce::String un, deux;
+        juce::String un;
         auto couleur = ui::colours::dim;
         if (enCours)
         {
@@ -111,28 +131,22 @@ public:
         }
         else if (etat == Etat::miseAJour)
         {
-            un = fr ("mise à jour");
-            deux = plugin.version != plugin.versionInstallee ? plugin.versionInstallee + " > " + plugin.version
-                                                             : plugin.version + ", build " + plugin.build;
+            un = fr ("mise à jour  ") + (plugin.version != plugin.versionInstallee ? plugin.versionInstallee + " > " + plugin.version : juce::String ("nouvel essai"));
             couleur = ui::colours::accent; // l'orange dit "il y a quelque chose a faire ici"
         }
         else if (etat == Etat::installe)
         {
-            un = fr ("installé");
-            deux = "version " + plugin.versionInstallee;
+            un = fr ("installé  ") + plugin.versionInstallee;
             couleur = ui::colours::text;
         }
         else
         {
             un = fr ("non installé");
-            deux = "version " + plugin.version;
         }
         g.setColour (couleur);
-        g.setFont (ui::caps (9.0f));
-        g.drawText (ui::upper (un), etatZone.withHeight (16).withY (zone.getY() + 15), juce::Justification::centredLeft, true);
-        g.setColour (ui::colours::dim);
-        g.setFont (ui::body (12.0f));
-        g.drawText (deux, etatZone.withHeight (16).withY (zone.getY() + 34), juce::Justification::centredLeft, true);
+        g.setFont (ui::caps (10.0f));
+        g.drawText (ui::upper (un), zone.withTrimmedRight (marge).removeFromRight (largeurDroite).withY (zone.getY() + 16).withHeight (18),
+                    juce::Justification::centredLeft, true);
     }
 
     void resized() override
@@ -140,10 +154,19 @@ public:
         auto zone = getLocalBounds();
         if (titre.isNotEmpty())
             zone.removeFromTop (hauteurTitre);
-        auto boutons = zone.removeFromRight (largeurBoutons).withTrimmedRight (ui::metrics::gap).withSizeKeepingCentre (largeurBoutons - ui::metrics::gap, ui::metrics::row);
-        retirer.setBounds (boutons.removeFromRight (112));
-        boutons.removeFromRight (8);
-        principal.setBounds (boutons);
+        auto droite = zone.withTrimmedRight (marge).removeFromRight (largeurDroite).withTrimmedTop (42);
+        auto premier = droite.removeFromTop (hauteurBouton);
+        droite.removeFromTop (6);
+        // Un seul bouton quand c'est possible : il prend la premiere place.
+        if (principal.isVisible())
+        {
+            principal.setBounds (premier);
+            retirer.setBounds (droite.removeFromTop (ui::metrics::row));
+        }
+        else
+        {
+            retirer.setBounds (premier);
+        }
     }
 
     Plugin plugin;
@@ -159,7 +182,7 @@ private:
         });
     }
 
-    static constexpr int largeurBoutons = 264, largeurEtat = 140, largeurDroite = largeurBoutons + largeurEtat + 24;
+    static constexpr int marge = 18, largeurDroite = 210, hauteurBouton = 30;
     juce::String titre;
     bool enCours = false, avecCatalogue = true;
     Resultat resultat;
@@ -177,7 +200,7 @@ public:
         if (lignes.isEmpty())
         {
             g.setColour (ui::colours::dim);
-            g.setFont (ui::body (13.0f));
+            g.setFont (ui::body (14.0f));
             g.drawFittedText (vide, getLocalBounds().reduced (ui::metrics::gap), juce::Justification::centred, 3);
         }
     }
@@ -188,7 +211,7 @@ public:
         for (auto* l : lignes)
         {
             l->setBounds (0, y, getWidth(), l->hauteurVoulue());
-            y += l->hauteurVoulue() + 8;
+            y += l->hauteurVoulue() + 10;
         }
     }
 
@@ -196,8 +219,8 @@ public:
     {
         int h = 0;
         for (auto* l : lignes)
-            h += l->hauteurVoulue() + 8;
-        return juce::jmax (h, 120);
+            h += l->hauteurVoulue() + 10;
+        return juce::jmax (h, 160);
     }
 
     juce::OwnedArray<Ligne> lignes;
@@ -235,20 +258,6 @@ public:
                               : reglages != nullptr ? reglages->getFile().getSiblingFile ("SoftwareCenter") : juce::File();
         dossierAffiche = moteur.dossierVst3;
 
-        // Onglets
-        for (auto* b : { &ongletPlugins, &ongletAtelier })
-        {
-            b->setClickingTogglesState (true);
-            b->setRadioGroupId (1);
-            addAndMakeVisible (*b);
-        }
-        ongletPlugins.setTooltip (fr ("Installer, mettre à jour et désinstaller les plugins Droz."));
-        ongletAtelier.setTooltip (fr ("Ce qui attend dans l'atelier, et le message à coller dans ton assistant."));
-        ongletPlugins.setToggleState (true, juce::dontSendNotification);
-        ongletPlugins.onClick = [this] { montrer (false); };
-        ongletAtelier.onClick = [this] { montrer (true); };
-
-        // Onglet Plugins
         changer.setTooltip (fr ("Choisir le dossier où ton DAW lit ses VST3. Il est retenu pour la suite."));
         actualiser.setTooltip (fr ("Relire le catalogue et le dossier VST3."));
         toutMettre.setTooltip (fr ("Met à niveau tous les plugins marqués « mise à jour », l'un après l'autre."));
@@ -265,21 +274,8 @@ public:
         vue.setScrollBarThickness (8);
         addAndMakeVisible (vue);
 
-        // Onglet Atelier
-        prenom.addItemList ({ "fx", "yoy", "zomban" }, 1);
-        prenom.setSelectedId (juce::jmax (1, reglages != nullptr ? reglages->getIntValue ("prenom", 1) : 1), juce::dontSendNotification);
-        prenom.setTooltip (fr ("Ton prénom : il est glissé dans le message."));
-        prenom.onChange = [this] { if (reglages != nullptr) reglages->setValue ("prenom", prenom.getSelectedId()); };
-        copier.setTooltip (fr ("Copie le message à coller tel quel dans ton assistant. Il met ta branche à jour et s'occupe du reste."));
-        copier.onClick = [this] { copierMessage(); };
-        toutesLesDemandes.setTooltip (fr ("Ouvre la liste des PR sur GitHub."));
-        toutesLesDemandes.onClick = [] { juce::URL (juce::String (adresseDepot) + "/pulls").launchInDefaultBrowser(); };
-        for (auto* c : std::initializer_list<juce::Component*> { &prenom, &copier, &toutesLesDemandes })
-            addChildComponent (*c);
-
         setLookAndFeel (&look);
-        setSize (860, 600);
-        montrer (false);
+        setSize (1040, 760);
         recharger();
     }
 
@@ -292,82 +288,31 @@ public:
     /** Vrai si une installation tourne : la fenetre ne doit pas se fermer au milieu. */
     bool occupee() const { return ! occupes.isEmpty(); }
 
-    void montrer (bool atelier)
-    {
-        surAtelier = atelier;
-        (atelier ? ongletAtelier : ongletPlugins).setToggleState (true, juce::dontSendNotification);
-        for (auto* c : std::initializer_list<juce::Component*> { &changer, &actualiser, &toutMettre, &vue })
-            c->setVisible (! atelier);
-        nouvelleVersion.setVisible (! atelier && nouvelleVersionDispo());
-        for (auto* c : std::initializer_list<juce::Component*> { &prenom, &copier, &toutesLesDemandes })
-            c->setVisible (atelier);
-        for (auto* l : liensDemandes)
-            l->setVisible (atelier);
-        for (auto* l : liens)
-            l->setVisible (atelier);
-        resized();
-        repaint();
-    }
-
     //==========================================================================
     void paint (juce::Graphics& g) override
     {
         g.fillAll (ui::colours::background);
         auto zone = ui::drawHeader (g, getLocalBounds(), "Software Center", DROZ_CENTRE_VERSION);
         zone = ui::drawFooter (g, zone, pied());
-        zone.reduce (ui::metrics::margin, ui::metrics::margin);
-        zone.removeFromTop (ui::metrics::row + ui::metrics::gap);
+        zone.reduce (marge, ui::metrics::margin);
 
-        if (! surAtelier)
-        {
-            auto barre = zone.removeFromTop (ui::metrics::row);
-            barre.removeFromRight (largeurBarre);
-            g.setColour (ui::colours::dim);
-            g.setFont (ui::caps (9.0f));
-            g.drawText ("DOSSIER VST3", barre.removeFromLeft (104), juce::Justification::centredLeft);
-            g.setColour (ui::colours::text);
-            g.setFont (ui::body (13.0f));
-            g.drawText (dossierAffiche.getFullPathName(), barre, juce::Justification::centredLeft, true);
-            if (avis().isNotEmpty())
-            {
-                zone.removeFromTop (ui::metrics::gap);
-                auto cadre = zone.removeFromTop (36);
-                g.setColour (ui::colours::panel);
-                g.fillRoundedRectangle (cadre.toFloat(), ui::metrics::corner);
-                g.setColour (ui::colours::text);
-                g.setFont (ui::body (13.0f));
-                g.drawText (avis(), cadre.reduced (ui::metrics::gap, 0).withTrimmedRight (nouvelleVersion.isVisible() ? 190 : 0),
-                            juce::Justification::centredLeft, true);
-            }
-            return;
-        }
-
-        // Atelier : trois cadres.
-        const auto zones = zonesAtelier (zone);
-        auto dedans = ui::drawPanel (g, zones.demandes, "PR en attente");
-        if (etat.atelier.demandes.empty())
-        {
-            g.setColour (ui::colours::dim);
-            g.setFont (ui::body (13.0f));
-            g.drawText (etat.horsLigne ? fr ("Catalogue non lu : pas d'état de l'atelier.") : fr ("Aucune PR en attente."), dedans.removeFromTop (22),
-                        juce::Justification::centredLeft, true);
-        }
-        dedans = ui::drawPanel (g, zones.fiches, fr ("Fiches à écrire"));
-        g.setColour (etat.atelier.fichesAEcrire.isEmpty() ? ui::colours::dim : ui::colours::text);
-        g.setFont (ui::body (13.0f));
-        g.drawFittedText (etat.atelier.fichesAEcrire.isEmpty() ? fr ("Aucune : chaque plugin en chantier a sa fiche.")
-                                                             : etat.atelier.fichesAEcrire.joinIntoString (", ") + fr (". Le message ci-dessous s'en charge."),
-                          dedans, juce::Justification::topLeft, 2);
-        dedans = ui::drawPanel (g, zones.message, fr ("Reprendre ou créer un plugin"));
+        auto barre = zone.removeFromTop (hauteurBarre);
+        barre.removeFromRight (largeurBarre);
         g.setColour (ui::colours::dim);
-        g.setFont (ui::body (13.0f));
-        g.drawFittedText (fr ("Un seul message à coller dans ton assistant, où que tu sois. Il lit les règles du dépôt, te pose ses questions en une fois et s'occupe du reste."),
-                          dedans.removeFromTop (36), juce::Justification::topLeft, 2);
-        if (messageCopie)
+        g.setFont (ui::caps (10.0f));
+        g.drawText ("DOSSIER VST3", barre.removeFromLeft (116), juce::Justification::centredLeft);
+        g.setColour (ui::colours::text);
+        g.setFont (ui::body (14.0f));
+        g.drawText (dossierAffiche.getFullPathName(), barre, juce::Justification::centredLeft, true);
+        if (avis().isNotEmpty())
         {
+            zone.removeFromTop (ui::metrics::gap);
+            auto cadre = zone.removeFromTop (40);
+            g.setColour (ui::colours::panel);
+            g.fillRoundedRectangle (cadre.toFloat(), ui::metrics::corner);
             g.setColour (ui::colours::text);
-            g.drawText (fr ("Copié. Colle-le dans ton assistant."), dedans.withTrimmedTop (ui::metrics::gap).removeFromTop (ui::metrics::row).withTrimmedLeft (110 + 190 + 2 * ui::metrics::gap),
-                        juce::Justification::centredLeft, true);
+            g.setFont (ui::body (14.0f));
+            g.drawText (avis(), cadre.reduced (18, 0).withTrimmedRight (nouvelleVersion.isVisible() ? 200 : 0), juce::Justification::centredLeft, true);
         }
     }
 
@@ -376,50 +321,24 @@ public:
         auto zone = getLocalBounds();
         zone.removeFromTop (ui::metrics::header);
         zone.removeFromBottom (ui::metrics::footer);
-        zone.reduce (ui::metrics::margin, ui::metrics::margin);
-        auto onglets = zone.removeFromTop (ui::metrics::row);
-        ongletPlugins.setBounds (onglets.removeFromLeft (120));
-        onglets.removeFromLeft (4);
-        ongletAtelier.setBounds (onglets.removeFromLeft (120));
-        zone.removeFromTop (ui::metrics::gap);
+        zone.reduce (marge, ui::metrics::margin);
 
-        if (! surAtelier)
+        auto barre = zone.removeFromTop (hauteurBarre);
+        toutMettre.setBounds (barre.removeFromRight (196));
+        barre.removeFromRight (8);
+        actualiser.setBounds (barre.removeFromRight (116));
+        barre.removeFromRight (8);
+        changer.setBounds (barre.removeFromRight (104));
+        nouvelleVersion.setVisible (nouvelleVersionDispo());
+        if (avis().isNotEmpty())
         {
-            auto barre = zone.removeFromTop (ui::metrics::row);
-            toutMettre.setBounds (barre.removeFromRight (176));
-            barre.removeFromRight (8);
-            actualiser.setBounds (barre.removeFromRight (104));
-            barre.removeFromRight (8);
-            changer.setBounds (barre.removeFromRight (92));
-            if (avis().isNotEmpty())
-            {
-                zone.removeFromTop (ui::metrics::gap);
-                auto cadre = zone.removeFromTop (36);
-                nouvelleVersion.setBounds (cadre.removeFromRight (190).withTrimmedRight (6).withSizeKeepingCentre (178, ui::metrics::row));
-            }
             zone.removeFromTop (ui::metrics::gap);
-            vue.setBounds (zone);
-            liste.setSize (juce::jmax (100, vue.getWidth() - 12), liste.hauteurVoulue());
-            return;
+            auto cadre = zone.removeFromTop (40);
+            nouvelleVersion.setBounds (cadre.removeFromRight (200).withTrimmedRight (8).withSizeKeepingCentre (184, ui::metrics::row));
         }
-
-        const auto zones = zonesAtelier (zone);
-        auto dedans = zones.demandes.reduced (ui::metrics::gap).withTrimmedTop (18);
-        for (auto* l : liensDemandes)
-            l->setBounds (dedans.removeFromTop (22));
-        toutesLesDemandes.setBounds (zones.demandes.reduced (ui::metrics::gap).removeFromTop (16).removeFromRight (120).withHeight (20).translated (0, -2));
-        dedans = zones.message.reduced (ui::metrics::gap).withTrimmedTop (18 + 36 + ui::metrics::gap);
-        auto ligne = dedans.removeFromTop (ui::metrics::row);
-        prenom.setBounds (ligne.removeFromLeft (110));
-        ligne.removeFromLeft (ui::metrics::gap);
-        copier.setBounds (ligne.removeFromLeft (190));
-        dedans.removeFromTop (ui::metrics::gap);
-        ligne = dedans.removeFromTop (ui::metrics::row);
-        for (auto* l : liens)
-        {
-            l->setBounds (ligne.removeFromLeft (juce::jmin (150, (zones.message.getWidth() - 2 * ui::metrics::gap) / juce::jmax (1, liens.size()) - 8)));
-            ligne.removeFromLeft (8);
-        }
+        zone.removeFromTop (ui::metrics::gap);
+        vue.setBounds (zone);
+        liste.setSize (juce::jmax (100, vue.getWidth() - 12), liste.hauteurVoulue());
     }
 
     /** Captures : rend la fenetre telle qu'elle est. */
@@ -430,31 +349,14 @@ private:
     struct Instantane
     {
         std::vector<Plugin> plugins;
-        Atelier atelier;
         bool horsLigne = false, catalogueAncien = false;
         juce::String erreur, versionCentre, installeurCentre, genere;
         juce::File dossier;
     };
 
-    struct ZonesAtelier
-    {
-        juce::Rectangle<int> demandes, fiches, message;
-    };
-
-    ZonesAtelier zonesAtelier (juce::Rectangle<int> zone) const
-    {
-        ZonesAtelier z;
-        z.message = zone.removeFromBottom (18 + 36 + 2 * ui::metrics::row + 4 * ui::metrics::gap + 6);
-        zone.removeFromBottom (ui::metrics::gap);
-        z.fiches = zone.removeFromBottom (18 + 40 + 2 * ui::metrics::gap);
-        zone.removeFromBottom (ui::metrics::gap);
-        z.demandes = zone;
-        return z;
-    }
-
     Instantane prendre() const
     {
-        return { moteur.plugins, moteur.atelier, moteur.horsLigne, moteur.catalogueAncien, moteur.erreurCatalogue,
+        return { moteur.plugins, moteur.horsLigne, moteur.catalogueAncien, moteur.erreurCatalogue,
                  moteur.versionCentre, moteur.installeurCentre, moteur.genere, moteur.dossierVst3 };
     }
 
@@ -544,17 +446,6 @@ private:
         });
     }
 
-    void copierMessage()
-    {
-        auto message = etat.atelier.message;
-        if (message.isEmpty()) // sans catalogue : l'essentiel tient en deux lignes
-            message = fr ("Tu travailles sur le dépôt GitHub droz-lab/plugins. Je suis <fx | yoy | zomban>.\n"
-                          "Ouvre docs/ATELIER.md, partie « Commencer ici », et fais tout ce que dit le message à coller.");
-        juce::SystemClipboard::copyTextToClipboard (message.replace ("<fx | yoy | zomban>", prenom.getText()));
-        messageCopie = true;
-        repaint();
-    }
-
     void appliquer (const Instantane& photo)
     {
         etat = photo;
@@ -599,10 +490,9 @@ private:
         changer.setEnabled (! lecture && occupes.isEmpty());
     }
 
-    /** Refait les lignes et les liens a partir du dernier etat connu. */
+    /** Refait les lignes a partir du dernier etat connu. Sections : publies, essais, hors catalogue. */
     void reconstruire()
     {
-        // Plugins, par section : publies, essais, hors catalogue.
         liste.lignes.clear();
         const bool catalogueLu = ! etat.horsLigne || etat.catalogueAncien;
         const char* const titres[] = { "Plugins", "En chantier, à l'essai", catalogueLu ? "Installés, absents du catalogue" : "Installés" };
@@ -628,43 +518,10 @@ private:
             }
         }
         liste.vide = etat.horsLigne ? fr ("Aucun plugin Droz dans ce dossier VST3.")
-                                    : fr ("Aucun plugin publié pour l'instant. Les chantiers apparaissent ici dès que leur Verdict est vert.");
-
-        // Atelier
-        for (auto* l : liensDemandes)
-            removeChildComponent (l);
-        liensDemandes.clear();
-        int n = 0;
-        for (const auto& d : etat.atelier.demandes)
-        {
-            if (++n > 8)
-                break;
-            auto texte = "PR " + juce::String (d.numero) + "  -  " + d.titre + "  -  " + d.auteur + "  -  Verdict " + d.verdict + (d.brouillon ? " (brouillon)" : "");
-            auto* l = liensDemandes.add (new juce::HyperlinkButton (texte, juce::URL (d.adresse)));
-            l->setFont (ui::body (13.0f), false, juce::Justification::centredLeft);
-            l->setColour (juce::HyperlinkButton::textColourId, ui::colours::text);
-            l->setTooltip (fr ("Ouvre la PR sur GitHub."));
-            addChildComponent (l);
-        }
-        for (auto* l : liens)
-            removeChildComponent (l);
-        liens.clear();
-        auto adresses = etat.atelier.liens;
-        if (adresses.empty())
-            adresses = { { fr ("Méthode"), juce::String (adresseDepot) + "/blob/main/docs/METHODE.md" },
-                         { "Habillage", juce::String (adresseDepot) + "/blob/main/docs/HABILLAGE.md" },
-                         { fr ("Page de l'atelier"), juce::String (adresseDepot) + "/releases/tag/dernier" } };
-        for (const auto& lien : adresses)
-        {
-            auto* b = liens.add (new juce::TextButton (lien.nom));
-            const auto adresse = lien.adresse;
-            b->setTooltip (adresse);
-            b->onClick = [adresse] { juce::URL (adresse).launchInDefaultBrowser(); };
-            addChildComponent (b);
-        }
-
+                                    : fr ("Aucun plugin pour l'instant. Chaque plugin apparaît ici dès qu'il passe les contrôles.");
         mettreAJourBoutons();
-        montrer (surAtelier);
+        resized();
+        repaint();
     }
 
     //==========================================================================
@@ -677,22 +534,17 @@ private:
     juce::StringArray occupes;
     std::map<juce::String, Resultat> derniers;
     juce::String dernierMessage;
-    bool lecture = false, surAtelier = false, messageCopie = false;
+    bool lecture = false;
 
     ui::LookAndFeel look;
     juce::TooltipWindow bulles { this, 600 };
-    juce::TextButton ongletPlugins { "Plugins" }, ongletAtelier { "Atelier" };
     juce::TextButton changer { "Changer" }, actualiser { "Actualiser" }, toutMettre { fr ("Tout mettre à jour") },
         nouvelleVersion { fr ("Télécharger") };
     juce::Viewport vue;
     Liste liste;
-    juce::ComboBox prenom;
-    juce::TextButton copier { "Copier le message" }, toutesLesDemandes { "Tout voir" };
-    juce::OwnedArray<juce::HyperlinkButton> liensDemandes;
-    juce::OwnedArray<juce::TextButton> liens;
     std::unique_ptr<juce::FileChooser> selecteur;
 
-    static constexpr int largeurBarre = 176 + 104 + 92 + 16 + 12;
+    static constexpr int marge = 20, hauteurBarre = 30, largeurBarre = 196 + 116 + 104 + 16 + 16;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Fenetre)
 };
 } // namespace centre

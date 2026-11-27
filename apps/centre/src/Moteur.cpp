@@ -128,6 +128,10 @@ bool Moteur::analyser (const juce::String& texte)
         p.nom = v["nom"].toString();
         p.auteur = v["auteur"].toString();
         p.description = v["description"].toString();
+        p.fiche = v["fiche"].toString();
+        if (const auto* reglages = v["reglages"].getArray())
+            for (const auto& r : *reglages)
+                p.reglages.add (r.toString());
         p.version = v["version"].toString();
         p.build = v["build"].toString();
         p.installeur = v["installeur"].toString();

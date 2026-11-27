@@ -4,6 +4,8 @@ Depot commun a plusieurs personnes et plusieurs Claude. Ces regles gardent le de
 
 ## Debut de session
 
+Ces regles se chargent toutes seules : la personne n'a rien a coller. Une phrase d'elle suffit ("bosse sur mon plugin", "fais-moi un delai qui degrade"). Tu ne sais pas qui elle est (fx, yoy, zomban) : demande-le, une fois. Tu ne peux pas pousser une branche ni ouvrir une PR : dis-le tout de suite et explique pas a pas quoi faire, sans jamais demander de mot de passe ni de jeton. Retrouve sa branche (elle commence par son prenom), puis :
+
 1. `python tools/droz.py bilan` : ce qui est pret, ce qui manque. Regle toi-meme ce qu'il liste sous "A REGLER" (branche en retard sur `main`, fiche absente), dans cet ordre, avant tout autre travail. Si la commande n'existe pas, ta branche est ancienne : `git fetch origin main && git merge origin/main`, puis relis ce fichier. Conflit a la fusion : garde le travail de la personne dans son plugin. Dans un fichier commun, garde les deux changements s'ils vont ensemble, sinon la version de `main`, et propose le sien a part dans une PR `commun:`. Dis-lui ce que tu as fait.
 2. Lis `docs/METHODE.md`, `docs/PIEGES.md`, `docs/HABILLAGE.md`, `carnet/<prenom>/PROFIL.md`, puis le `FICHE.md` et le `NOTES.md` du plugin concerne.
 3. Ce que le bilan liste sous "A DEMANDER" : pose-le a la personne en un seul message, a choix quand c'est possible, et range les reponses (profil dans `carnet/<prenom>/PROFIL.md`, le reste dans la fiche ou `NOTES.md`) pour ne jamais les redemander.

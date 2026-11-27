@@ -1,5 +1,3 @@
-# Pour tout assistant de code
+# Regles du depot
 
-Les regles de ce depot sont dans [CLAUDE.md](CLAUDE.md), quel que soit l'assistant. Lis-le en entier avant toute action.
-
-Premiere commande de chaque session : `python tools/droz.py bilan`.
+Toutes les regles sont dans [CLAUDE.md](CLAUDE.md), quel que soit l'assistant. Lis-le en entier avant de travailler, puis suis sa partie "Debut de session".
