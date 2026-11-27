@@ -53,6 +53,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx. Un workflow ne peut pas pousser dans `main` protegee, et un push fait avec son jeton ne lance aucun autre workflow. Pour qu'un robot range un fichier dans `main` (le README) : il pousse une branche, ouvre une PR, lance lui-meme le Verdict par `workflow_dispatch` (la seule chose que son jeton peut declencher), et fusionne quand c'est vert. Voir `centre.yml`.
 
+- 2026-11-27, Fx. PowerShell : `BaseName` d'un dossier garde l'extension (`Droz Courbes.vst3`), contrairement a un fichier. Pour le nom d'un paquet `.vst3` : `[System.IO.Path]::GetFileNameWithoutExtension($dossier.Name)`.
+
 ## Habillage
 
 - 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.
