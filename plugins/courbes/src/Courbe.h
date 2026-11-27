@@ -24,6 +24,7 @@ struct Point
     float y = 0.0f;       // valeur, [0, 1]
     float tension = 0.0f; // [-1, 1] : courbure du segment qui part de ce point
     Segment type = Segment::courbe;
+    bool choisi = false;  // selectionne dans l'editeur (sans effet sur le son)
 };
 
 constexpr int maxPoints = 128;
@@ -739,5 +740,118 @@ inline Reglage perturber (const Reglage& base, float intensite, Hasard& h) noexc
         v = borne (v + (h.suivant() * 2.0f - 1.0f) * intensite, 0.0f, 1.0f);
     r.graine = 1u + static_cast<uint32_t> (h.suivant() * 1.0e6f);
     return r;
+}
+
+/** Les 3 styles d'evolution proposes en un clic : garder, revenir, varier, changer, intensite. */
+struct StyleEvolution
+{
+    const char* nom;
+    float garder, revenir, varier, changer, intensite;
+};
+
+inline const StyleEvolution& styleEvolution (int i) noexcept
+{
+    static const StyleEvolution styles[3] = {
+        { "Stable", 80.0f, 10.0f, 10.0f, 0.0f, 20.0f },
+        { "Évolutif", 45.0f, 10.0f, 30.0f, 15.0f, 45.0f },
+        { "Chaotique", 10.0f, 5.0f, 40.0f, 45.0f, 85.0f },
+    };
+    return styles[std::clamp (i, 0, 2)];
+}
+
+//==============================================================================
+// Groupes de familles (pour regler les chances plus vite).
+
+constexpr int nombreGroupes = 4;
+
+inline const char* nomGroupe (int g) noexcept
+{
+    static const char* noms[nombreGroupes] = { "Lisses", "Rythmiques", "Gates", "Hasard" };
+    return noms[std::clamp (g, 0, nombreGroupes - 1)];
+}
+
+inline int groupeFamille (int f) noexcept
+{
+    static const int groupes[nombreFamilles] = { 0, 0, 0, 1, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3 };
+    return groupes[std::clamp (f, 0, nombreFamilles - 1)];
+}
+
+//==============================================================================
+// Transformations rapides de toute la courbe.
+
+inline void inverser (Courbe& c) noexcept
+{
+    for (int i = 0; i < c.taille(); ++i)
+        c.point (i).y = 1.0f - c.point (i).y;
+}
+
+/** Joue la courbe a l'envers dans le temps. */
+inline void retourner (Courbe& c) noexcept
+{
+    const int n = c.taille();
+    if (n < 2)
+        return;
+    Courbe r;
+    for (int i = 0; i < n; ++i)
+    {
+        // Le segment qui partait du point i (vers i+1) part maintenant de l'image de i+1.
+        const auto& source = c.point (i);
+        const auto& arrivee = c.point ((i + 1) % n);
+        const float x = arrivee.x <= 0.0f ? 0.0f : 1.0f - arrivee.x;
+        r.ajouter (x, arrivee.y, -source.tension, source.type);
+    }
+    r.trier();
+    c = r;
+}
+
+/** La forme deux fois plus vite, repetee deux fois. Faux si la courbe deviendrait trop grande. */
+inline bool doubler (Courbe& c) noexcept
+{
+    const int n = c.taille();
+    if (n * 2 > maxPoints)
+        return false;
+    Courbe r;
+    for (int k = 0; k < 2; ++k)
+        for (int i = 0; i < n; ++i)
+        {
+            const auto& p = c.point (i);
+            r.ajouter (p.x * 0.5f + 0.5f * static_cast<float> (k), p.y, p.tension, p.type);
+        }
+    r.trier();
+    c = r;
+    return true;
+}
+
+/** Garde la premiere moitie de la forme, etiree sur tout le cycle. */
+inline void moitie (Courbe& c) noexcept
+{
+    const float fin = c.valeur (0.4999f);
+    Courbe r;
+    for (int i = 0; i < c.taille(); ++i)
+    {
+        const auto& p = c.point (i);
+        if (p.x < 0.5f)
+            r.ajouter (p.x * 2.0f, p.y, p.tension, p.type);
+    }
+    if (r.taille() < 2)
+        r.ajouter (0.999f, fin);
+    r.trier();
+    c = r;
+}
+
+/** Swing : dans chaque paire de cases de grille, la premiere dure plus longtemps (1 + s) et la seconde
+    moins (1 - s). `phase` est le temps reel dans le cycle, le resultat le temps "courbe". */
+inline float swinguer (float phase, double cases, float s) noexcept
+{
+    if (s <= 0.0f || cases < 2.0)
+        return phase;
+    const double u = static_cast<double> (phase) * cases;
+    const double paire = std::floor (u * 0.5);
+    if ((paire + 1.0) * 2.0 > cases + 1.0e-9) // paire incomplete en fin de cycle : pas de swing
+        return phase;
+    const double r = u - paire * 2.0;
+    const double sd = static_cast<double> (s);
+    const double v = r < 1.0 + sd ? r / (1.0 + sd) : 1.0 + (r - (1.0 + sd)) / (1.0 - sd);
+    return static_cast<float> ((paire * 2.0 + v) / cases);
 }
 } // namespace courbes

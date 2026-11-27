@@ -19,9 +19,27 @@ struct Duree
     bool ternaire;
 };
 
-/** Courbes : joue une courbe en boucle, calee sur le tempo, et l'envoie en MIDI CC.
+constexpr int nombreOnglets = 8;
+
+/** Reglages d'evolution : garder, revenir, varier, changer, intensite, cycles, puis un poids par famille. */
+namespace evo
+{
+enum : int
+{
+    garder = 0,
+    revenir,
+    varier,
+    changer,
+    intensite,
+    cycles,
+    poids0,
+    total = poids0 + courbes::nombreFamilles
+};
+}
+
+/** Droz Courbes : 8 courbes en boucle (onglets), calees sur le tempo, chacune envoyee sur son CC.
     Instrument (pour qu'Ableton et Bitwig laissent router sa sortie MIDI) ; il ne fait du son
-    que si "Ecoute" est allume : un son test module par la courbe, pour entendre la forme. */
+    que si "Ecoute" est allume : un son test module par la courbe de l'onglet affiche. */
 class PluginProcessor final : public juce::AudioProcessor
 {
 public:
@@ -53,95 +71,119 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
-    // Taille de la fenetre : gardee dans l'etat du plugin, sinon le DAW la perd a la reouverture.
-    std::atomic<int> editorWidth { 1240 }, editorHeight { 780 };
-    // Aimant de la grille dans l'editeur (garde avec le projet).
+    /** Identifiant d'un parametre d'onglet : "o<numero>_<base>". */
+    static juce::String id (int onglet, const char* base);
+    juce::RangedAudioParameter* param (int onglet, const char* base) const;
+    float valeur (int onglet, const char* base) const;
+
+    // Interface : taille, aimant, onglet affiche (garde avec le projet).
+    std::atomic<int> editorWidth { 1320 }, editorHeight { 860 };
     std::atomic<bool> aimant { true };
+    std::atomic<int> ongletAffiche { 0 };
 
     //== Durees ===================================================================================
-    static const std::vector<Duree>& longueurs();   // choix du parametre "longueur"
-    static const std::vector<Duree>& grilles();     // choix du parametre "grille" (binaire)
-    static constexpr int longueurParDefaut = 10;    // 1 mesure
-    /** Index de longueur reellement joue : sans le ternaire, une valeur ternaire passe a la suivante. */
+    static const std::vector<Duree>& longueurs();
+    static const std::vector<Duree>& grilles();
+    static constexpr int longueurParDefaut = 10; // 1 mesure
     static int longueurJouee (int index, bool ternaireAutorise);
     static double enNoires (const Duree&, double noiresParMesure);
+    /** Longueur du cycle et taille d'une case de grille de l'onglet, en noires. */
+    double cycleNoires (int onglet, double npm) const;
+    double caseNoires (int onglet) const;
 
-    //== Cote interface (fil de l'interface uniquement) ==========================================
-    courbes::Courbe getCourbe() const;
-    courbes::Reglage getReglage() const;
-    /** Remplace la courbe jouee. `membre` -1 = reglee ou generee a la main. */
-    void setCourbe (const courbes::Courbe&, int famille, int membre, const courbes::Reglage&);
-    int getFamille() const noexcept { return famille.load(); }
-    int getMembre() const noexcept { return membre.load(); }
-    /** Augmente a chaque changement de courbe (rechargement d'un projet compris). */
-    int getVersionCourbe() const noexcept { return versionCourbe.load(); }
+    //== Courbes (fil de l'interface) =============================================================
+    courbes::Courbe getCourbe (int onglet) const;
+    courbes::Reglage getReglage (int onglet) const;
+    void setCourbe (int onglet, const courbes::Courbe&, int famille, int membre, const courbes::Reglage&);
+    int getFamille (int onglet) const noexcept { return famille[static_cast<size_t> (onglet)].load(); }
+    int getMembre (int onglet) const noexcept { return membre[static_cast<size_t> (onglet)].load(); }
+    int getVersionCourbe (int onglet) const noexcept { return versionCourbe[static_cast<size_t> (onglet)].load(); }
 
-    // Pour l'affichage : ou en est la lecture, la valeur envoyee, la signature du morceau.
-    std::atomic<float> phaseAffichee { 0.0f }, valeurAffichee { 0.0f };
-    std::atomic<int> ccAffiche { -1 };
+    /** Ce que joue l'evolution : courbe en cours, prochaine courbe, dans combien de cycles. */
+    struct Lecture
+    {
+        courbes::Courbe jouee, prochaine;
+        int familleJouee = 0, familleProchaine = 0;
+        bool prochaineValide = false, joueeEstLaBase = true;
+        int cyclesAvant = 0;
+    };
+    void getLecture (int onglet, Lecture&) const;
+    int getVersionLecture (int onglet) const noexcept { return versionLecture[static_cast<size_t> (onglet)].load(); }
+
+    //== Reglages d'evolution =====================================================================
+    /** Reglages communs (parametres du DAW) ou propres a un onglet (gardes dans le projet). */
+    float getEvo (int onglet, bool communs, int champ) const;
+    void setEvo (int onglet, bool communs, int champ, float v);
+    static juce::String idEvoCommun (int champ);
+    uint32_t getGraine() const noexcept { return graineEvolution.load(); }
+    void setGraine (uint32_t g) noexcept { graineEvolution = g; }
+
+    // Pour l'affichage.
+    std::array<std::atomic<float>, nombreOnglets> phaseAffichee {}, valeurAffichee {};
+    std::array<std::atomic<int>, nombreOnglets> ccAffiche {};
     std::atomic<double> noiresParMesure { 4.0 };
-
-    /** Courbe en train d'etre jouee (differente de la courbe de base quand l'evolution est active). */
-    void getCourbeJouee (courbes::Courbe& c, int& familleJouee) const;
-    int getVersionJouee() const noexcept { return versionJouee.load(); }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
-    // Courbe : copie gardee par l'interface, copie partagee sous SpinLock, copie du fil audio.
+    struct Voix
+    {
+        courbes::Courbe base, jouee, prochaine;
+        courbes::Reglage rBase, rJouee, rProchaine;
+        int fBase = 0, fJouee = 0, fProchaine = 0;
+        bool prochaineValide = false, prochaineEstLaBase = false, joueeEstLaBase = true;
+        int64_t cycleProchaine = 0, dernierCycle = std::numeric_limits<int64_t>::min();
+        bool aPublier = true;
+        double phaseLibre = 0.0, positionNote = 0.0;
+        droz::Smoother sortie, decalage, bas, haut;
+        int dernierCc = -1, numero = -1, canal = -1, compteurEnvoi = 0;
+        float valeur = 0.0f;
+        int versionAudio = 0;
+    };
+
+    void surCycle (int onglet, int64_t cycle, bool suite, double cycleNoires, double npm) noexcept;
+    void preparerProchaine (int onglet, int64_t apres, double cycleNoires, double npm) noexcept;
+    courbes::Evolution lireEvolution (int onglet, bool communs, int& cycles) const noexcept;
+    void publier (int onglet) noexcept;
+
+    std::array<Voix, nombreOnglets> voix;
+
+public:
+    /** Parametres de chaque onglet, dans l'ordre de nomsParametresOnglet(). */
+    enum Champ : int { actif = 0, longueur, ternaire, grille, grilleTernaire, phase, cc, canal, min, max, lissage,
+                       swing, depart, evolution, lie, coherence, nombreChamps };
+    static const char* nomParametreOnglet (int champ);
+
+private:
+    std::array<std::array<std::atomic<float>*, nombreChamps>, nombreOnglets> pOnglet {};
+    float lire (int onglet, int champ) const noexcept { return pOnglet[static_cast<size_t> (onglet)][static_cast<size_t> (champ)]->load(); }
+
+    // Courbe de base : copie de l'interface, copie partagee sous SpinLock.
     mutable juce::CriticalSection verrouInterface;
-    courbes::Courbe courbeInterface;
-    courbes::Reglage reglageInterface;
+    std::array<courbes::Courbe, nombreOnglets> courbeInterface;
+    std::array<courbes::Reglage, nombreOnglets> reglageInterface;
     juce::SpinLock verrouPartage;
-    courbes::Courbe courbePartagee;
-    courbes::Reglage reglagePartage;
-    int famillePartagee = 0;
+    std::array<courbes::Courbe, nombreOnglets> courbePartagee;
+    std::array<courbes::Reglage, nombreOnglets> reglagePartage;
+    std::array<int, nombreOnglets> famillePartagee {};
+    std::array<std::atomic<int>, nombreOnglets> versionCourbe {}, famille {}, membre {};
 
-    // Fil audio : courbe de base (celle de l'editeur) et courbe jouee (apres evolution).
-    courbes::Courbe courbeBase, courbeAudio;
-    courbes::Reglage reglageBase, reglageAudio;
-    int familleBase = 0, familleAudio = 0;
-    int64_t dernierCycle = std::numeric_limits<int64_t>::min();
-    int compteurCycles = 0;
-    bool joueeChangee = false;   // a publier vers l'interface
-    bool joueeDifferente = false; // la courbe jouee n'est plus la courbe de base
-    void evoluer (int64_t cycle) noexcept;
-    void publierJouee() noexcept;
+    // Retour vers l'interface de ce que joue l'evolution.
+    mutable juce::SpinLock verrouLecture;
+    std::array<Lecture, nombreOnglets> lectureUI;
+    std::array<std::atomic<int>, nombreOnglets> versionLecture {};
 
-    // Retour vers l'interface de la courbe jouee.
-    mutable juce::SpinLock verrouJoue;
-    courbes::Courbe courbeJoueeUI;
-    int familleJoueeUI = 0;
-    std::atomic<int> versionJouee { 0 };
+    // Reglages d'evolution propres a chaque onglet (non automatisables).
+    std::array<std::array<std::atomic<float>, evo::total>, nombreOnglets> evoPropre;
+    std::array<std::atomic<float>*, evo::total> evoCommun {};
     std::atomic<uint32_t> graineEvolution { 12345 };
-    std::atomic<int> versionCourbe { 1 };
-    int versionAudio = 0;
-    std::atomic<int> famille { 0 }, membre { 0 };
 
-    std::atomic<float>* pLongueur = nullptr;
-    std::atomic<float>* pTernaire = nullptr;
-    std::atomic<float>* pPhase = nullptr;
-    std::atomic<float>* pCc = nullptr;
-    std::atomic<float>* pCanal = nullptr;
-    std::atomic<float>* pMin = nullptr;
-    std::atomic<float>* pMax = nullptr;
-    std::atomic<float>* pLissage = nullptr;
     std::atomic<float>* pEcoute = nullptr;
-    std::atomic<float>* pEvolution = nullptr;
-    std::atomic<float>* pEvolCycles = nullptr;
-    std::atomic<float>* pGarder = nullptr;
-    std::atomic<float>* pRevenir = nullptr;
-    std::atomic<float>* pVarier = nullptr;
-    std::atomic<float>* pChanger = nullptr;
-    std::atomic<float>* pIntensite = nullptr;
-    std::array<std::atomic<float>*, courbes::nombreFamilles> pPoids {};
-
+    std::atomic<float>* pRythme = nullptr;
+    std::atomic<float>* pMesures = nullptr;
     double sr = 48000.0;
-    double phaseLibre = 0.0; // position quand le transport est arrete
-    double phaseTon = 0.0;   // son test de l'ecoute
-    droz::Smoother sortie, ecoute, decalage, bas, haut, ton;
-    int dernierCc = -1, dernierNumero = -1, dernierCanal = -1;
-    int compteurEnvoi = 0;
+    double phaseTon = 0.0;
+    droz::Smoother ecoute, ton;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

@@ -1,4 +1,4 @@
-# Courbes
+# Droz Courbes
 
 Responsable : Zomban (Bitwig, doit aussi marcher dans Ableton ; Windows seulement sauf demande).
 
@@ -36,13 +36,25 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
   - Identite visuelle "Zomban" : rien trouve d'exploitable en ligne (SoundCloud djzomban inaccessible
     d'ici). En attente d'images / couleurs de Zomban.
 
+- v0.2.0 (2026-11-27) : retours de Zomban.
+  - 8 onglets (couleur + insecte dessine), chacun sa courbe, son CC (20 a 27 par defaut), Actif on/off.
+    Parametres "o1_..." a "o8_..." (pas de reprise des reglages v0.1 : Zomban s'en fiche).
+  - Affichage "Toutes les courbes" : onglets allumes superposes, points selectionnables sur plusieurs courbes.
+  - Selection multiple facon Ableton : cadre, deplacer, poignees pour etirer, Suppr, Ctrl+A.
+  - Annuler / Retablir (tous les onglets), Inverser, Retourner, x2, /2, Copier / Coller, Mes courbes
+    (fichier mes-courbes.xml dans le dossier de donnees utilisateur), Swing, Depart Tempo / Note.
+  - Evolution : prochaine courbe tiree a l'avance et affichee ; rythme "chaque iteration" ou
+    "toutes les N mesures" (toutes les courbes ensemble) ; styles Stable / Evolutif / Chaotique ;
+    vraies chances en % ; familles par groupes (Tout / Rien / seule) ; onglets lies (reglages communs,
+    tirage commun par mesure + Coherence) ou propres ; "Nouvelle suite" / suite precedente.
+  - Verifie : tests communs 9/9, pluginval 5, test a part (8 CC, ternaire, N mesures synchro,
+    prochaine = jouee, depart Note, etat, transformations).
+
 ## A faire / idees
 
 - Tester dans Bitwig et Ableton le routage du CC (voir "Utilisation" ci-dessous) et noter ce qui marche.
-- Plusieurs sorties (2 a 4 courbes, un CC chacune).
-- Declenchement par note MIDI (la courbe repart a chaque note) en plus du tempo.
 - CC 14 bits pour les parametres qui demandent de la finesse.
-- Sauvegarder ses propres formes dans une famille "Mes courbes".
+- Affichage multicourbe : les courbes de longueurs differentes sont dessinees chacune sur sa propre longueur (a revoir si genant).
 
 ## Utilisation (a confirmer en vrai)
 
@@ -54,7 +66,7 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
 
 ## Decisions et lecons
 
-- Parametres v0.1 abandonnes (ne jamais reutiliser) : "vitesse", "ecoute".
+- Parametres abandonnes (ne jamais reutiliser) : "vitesse", "ecoute", et les identifiants v0.1 sans prefixe d'onglet.
 - Interrupteurs en AudioParameterChoice Non/Oui, pas AudioParameterBool (voir PIEGES).
 - Evolution calculee dans le fil audio : generer() et trier() sont sans allocation (tri par insertion).
 
