@@ -52,7 +52,7 @@ Cree-le avec tools/droz.py, ouvre une PR, et dis-moi quoi ecouter.
 
 1. Monter `version` dans `plugins/<dossier>/plugin.json`, fusionner la PR.
 2. Onglet **Actions** > **Sortie** > **Run workflow**, taper le dossier du plugin (ex. `test-v0`).
-3. L'installeur Windows et les zips Mac et Linux arrivent dans l'onglet **Releases** et sur la page fixe `dernier`. C'est la meme chose pour tous les plugins et toutes les versions.
+3. Meme sortie pour tous les plugins et toutes les versions : un seul fichier mis en avant, l'installeur Windows (`<Nom>-Setup.exe`), sur la page fixe `dernier` et dans le tableau du README. Il demande le dossier VST3 et le retient. Les zips Mac, Linux et Windows restent sur la Release de la version, sans etre mis en avant.
 4. `python tools/droz.py vitrine` refait le tableau du README (plugins publies et en chantier) : a lancer apres chaque publication et quand un plugin apparait sur une branche.
 
 ## Compiler chez soi (facultatif)
