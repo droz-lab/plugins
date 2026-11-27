@@ -819,7 +819,8 @@ void testTransport (bool synth)
         transport = Transport();
         if (! allFinite (out) || peak (out) > 100.0f)
         {
-            fail ("transport", juce::String ("sortie invalide : ") + juce::String::fromUTF8 (c.nom));
+            // Alerte en chantier, echec au palier pro (comme "temps reel") : la methode guide avant de bloquer.
+            warn ("transport", juce::String ("sortie invalide : ") + juce::String::fromUTF8 (c.nom));
             return;
         }
     }
@@ -846,7 +847,7 @@ void testRestart (bool synth)
         ++etapes;
     }
     if (! fine)
-        fail ("reprise", "sortie invalide quand la meme instance change de frequence ou de taille de bloc");
+        warn ("reprise", "sortie invalide quand la meme instance change de frequence ou de taille de bloc");
     else
         ok ("reprise", juce::String (etapes) + " changements de frequence et de bloc sur la meme instance (jusqu'a 192 kHz)");
 }

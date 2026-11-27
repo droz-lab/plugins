@@ -102,11 +102,25 @@ def ids_fiche(texte: str) -> list[str]:
     return ids
 
 
-def erreurs_fiches(dossiers=None) -> list[str]:
-    err = []
-    for dossier in metas():
+def fiches_absentes(bloquantes: bool, dossiers=None) -> list[str]:
+    """Plugins sans FICHE.md. Au palier pro c'est bloquant ; en chantier (0.x) c'est une alerte :
+    un plugin ne d'avant la methode ne doit pas faire rougir la PR de son auteur."""
+    out = []
+    for dossier, m in metas().items():
         if dossier.startswith("_") or (dossiers is not None and dossier not in dossiers):
             continue
+        if not (PLUGINS / dossier / "FICHE.md").exists() and (palier(m) == "pro") == bloquantes:
+            out.append(dossier)
+    return out
+
+
+def erreurs_fiches(dossiers=None) -> list[str]:
+    err = []
+    for dossier, m in metas().items():
+        if dossier.startswith("_") or (dossiers is not None and dossier not in dossiers):
+            continue
+        if not (PLUGINS / dossier / "FICHE.md").exists() and palier(m) != "pro":
+            continue  # alerte seulement, voir fiches_absentes
         fiche = PLUGINS / dossier / "FICHE.md"
         aide = ("mets d'abord ta branche a jour avec `git fetch origin main && git merge origin/main`, "
                 "puis lis docs/METHODE.md et lance `python tools/droz.py bilan` ; modele : plugins/_modele/FICHE.md")
@@ -186,8 +200,14 @@ def cmd_verifier(_) -> int:
         if os.environ.get("GITHUB_ACTIONS"):  # visible en tete du run et sur la PR
             print(f"::error title=Fiche de plugin::{e}")
     if not fiches:
-        print("fiches : toutes presentes et remplies")
+        print("fiches : aucune fiche incomplete")
     err += fiches
+    for dossier in fiches_absentes(False):
+        message = (f"{dossier} n'a pas encore sa FICHE.md. Rien n'est bloque en version 0.x. Pour l'ecrire : "
+                   "`python tools/droz.py bilan` et suivre ce qu'il dit (docs/METHODE.md). Obligatoire pour une 1.0.0.")
+        print("A FAIRE fiche :", message)
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"::warning title=Fiche de plugin a ecrire::{message}")
     # Non bloquant : un oubli ne doit pas faire rougir la PR de quelqu'un d'autre.
     lisezmoi = README.read_text(encoding="utf-8")
     for dossier, m in metas().items():
@@ -326,8 +346,9 @@ def cmd_fiche_params(a) -> int:
     """Chaque reglage de la fiche doit exister dans le plugin (sortie de `<cible>_outil params`)."""
     fiche = PLUGINS / a.dossier / "FICHE.md"
     if not fiche.exists():
-        print(f"ERREUR fiche : {a.dossier} : pas de FICHE.md")
-        return 1
+        en_pro = palier(metas().get(a.dossier, {})) == "pro"
+        print(f"{'ERREUR' if en_pro else 'A FAIRE'} fiche : {a.dossier} : pas de FICHE.md" + ("" if en_pro else " (pas bloquant en 0.x)"))
+        return 1 if en_pro else 0
     reels = {l.split()[0] for l in Path(a.params).read_text(encoding="utf-8", errors="replace").splitlines()[1:] if l.strip()}
     absents = [i for i in ids_fiche(fiche.read_text(encoding="utf-8", errors="replace")) if i not in reels]
     if absents:
@@ -399,8 +420,11 @@ def cmd_bilan(a) -> int:
     concernes = sorted(d for d, m in tous.items() if not d.startswith("_") and (d in touches or str(m.get("auteur", "")).lower() == prenom))
     for d in concernes:
         infos.append(f"plugin : {d} ({tous[d].get('nom')}, version {tous[d].get('version')}, palier {palier(tous[d])})")
+    for d in (fiches_absentes(False, concernes) + fiches_absentes(True, concernes)) if concernes else []:
+        regler.append(f"{d} n'a pas de FICHE.md : copie plugins/_modele/FICHE.md dans plugins/{d}/, remplis-la a partir de ce que le plugin "
+                      "fait deja (lis son code et son NOTES.md), note ce que tu supposes `SUPPOSE : ...`, puis resume-la en cinq lignes a la personne")
     for e in erreurs_fiches(concernes) if concernes else []:
-        regler.append("fiche, " + e.split(" (mets d'abord")[0] + " : ecris-la a partir de ce que le plugin fait deja, note tes suppositions `SUPPOSE : ...` et fais-les valider")
+        regler.append("fiche, " + e.split(" (mets d'abord")[0])
     for d in concernes:
         if not (PLUGINS / d / "NOTES.md").exists():
             regler.append(f"{d} : pas de NOTES.md (memoire du plugin)")
