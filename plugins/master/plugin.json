@@ -1,0 +1,9 @@
+{
+  "nom": "Droz Master",
+  "cible": "DrozMaster",
+  "code": "Dro2",
+  "type": "effet",
+  "version": "0.1.0",
+  "auteur": "yoy",
+  "description": "Chaine de mastering a modules reordonnables : EQ, EQ dynamique, compresseur a styles, multibande, suppresseur de resonances, exciter multibande, clipper, limiteur. Chaque module en stereo, mid-side, gauche-droite ou transitoire-tonal."
+}

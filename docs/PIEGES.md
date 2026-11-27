@@ -15,6 +15,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 ## Son
 
+- 2026-11-27, YoY, verifie. `juce::AudioParameterBool` garde la valeur brute envoyee par l'hote (0,37 par ex.) mais n'en sauvegarde que 0 ou 1 : le test "etat" echoue au rechargement. Parade : declarer les interrupteurs en `AudioParameterChoice` a deux choix (Eteint / Allume), `ButtonAttachment` marche pareil. Voir `plugins/master/src/Parametres.cpp`.
+- 2026-11-27, YoY, verifie. Les tests communs ne testent que les reglages par defaut (sauf "robustesse") : un module eteint par defaut n'est pas verifie contre les clics. Pour un plugin a modules, relancer les tests en local avec tout allume.
 - 2026-11-27, Fx, verifie. Un lissage un pole calcule en `float` se fige a environ 3e-5 de sa cible pres de 1.0 : le pas devient plus petit que la precision. Le gain n'arrive jamais a l'unite. `droz::Smoother` garde son etat en `double`, et son test le verifie.
 - 2026-11-27, Fx, a retenir. Faire dialoguer plusieurs instances par une variable partagee ne marche que si le DAW les charge dans le meme processus. Bitwig en mode d'hebergement "Individually" (ou plugin coche dans les exceptions) et Reaper en processus separes les isolent. Dans Bitwig, "Together" (le defaut), "By manufacturer" ou "By plug-in" conviennent. Parade durable : memoire partagee nommee ou canal entre processus.
 - 2026-11-27, Fx, a retenir. Freeze, Flatten ou export d'une seule piste : les autres pistes ne tournent pas. Un plugin qui depend d'une autre piste doit l'afficher clairement.
