@@ -80,11 +80,13 @@ public:
     std::atomic<int> editorWidth { 1320 }, editorHeight { 860 };
     std::atomic<bool> aimant { true };
     std::atomic<int> ongletAffiche { 0 };
+    std::array<std::atomic<bool>, nombreOnglets> visible {};
+    std::atomic<bool> insectes { true }, panneauEvolution { true };
 
     //== Durees ===================================================================================
     static const std::vector<Duree>& longueurs();
     static const std::vector<Duree>& grilles();
-    static constexpr int longueurParDefaut = 10; // 1 mesure
+    static constexpr int longueurParDefaut = 12; // 2 mesures
     static int longueurJouee (int index, bool ternaireAutorise);
     static double enNoires (const Duree&, double noiresParMesure);
     /** Longueur du cycle et taille d'une case de grille de l'onglet, en noires. */
@@ -92,9 +94,24 @@ public:
     double caseNoires (int onglet) const;
 
     //== Courbes (fil de l'interface) =============================================================
+    /** Courbe en cours de l'onglet (celle qu'on modifie ; l'evolution repart d'elle). */
     courbes::Courbe getCourbe (int onglet) const;
     courbes::Reglage getReglage (int onglet) const;
     void setCourbe (int onglet, const courbes::Courbe&, int famille, int membre, const courbes::Reglage&);
+
+    /** Seed : la courbe de depart de l'evolution (a la relecture, l'evolution repart d'elle). */
+    struct Seed
+    {
+        courbes::Courbe courbe;
+        int famille = 0;
+        courbes::Reglage reglage;
+        juce::String nom;
+    };
+    Seed getSeed (int onglet) const;
+    void setSeed (int onglet, const Seed&);
+    std::vector<Seed> getSeedsStockees (int onglet) const;
+    void stockerSeed (int onglet, const Seed&);
+    void supprimerSeed (int onglet, int index);
     int getFamille (int onglet) const noexcept { return famille[static_cast<size_t> (onglet)].load(); }
     int getMembre (int onglet) const noexcept { return membre[static_cast<size_t> (onglet)].load(); }
     int getVersionCourbe (int onglet) const noexcept { return versionCourbe[static_cast<size_t> (onglet)].load(); }
@@ -104,6 +121,8 @@ public:
     {
         courbes::Courbe jouee, prochaine;
         int familleJouee = 0, familleProchaine = 0;
+        courbes::Reglage reglageJouee;
+        int versionCourbe = 0; // version de la courbe en cours que l'audio a deja prise en compte
         bool prochaineValide = false, joueeEstLaBase = true;
         int cyclesAvant = 0;
     };
@@ -115,6 +134,10 @@ public:
     float getEvo (int onglet, bool communs, int champ) const;
     void setEvo (int onglet, bool communs, int champ, float v);
     static juce::String idEvoCommun (int champ);
+    /** Multi-solo des familles : si au moins une famille est en solo, seules celles-la sont tirees (a parts egales). */
+    bool getSolo (int onglet, bool communs, int famille) const;
+    void setSolo (int onglet, bool communs, int famille, bool solo);
+    static const std::vector<std::pair<const char*, double>>& mesuresEvolution(); // nom, duree en mesures
     uint32_t getGraine() const noexcept { return graineEvolution.load(); }
     void setGraine (uint32_t g) noexcept { graineEvolution = g; }
 
@@ -138,7 +161,7 @@ private:
         droz::Smoother sortie, decalage, bas, haut;
         int dernierCc = -1, numero = -1, canal = -1, compteurEnvoi = 0;
         float valeur = 0.0f;
-        int versionAudio = 0;
+        int versionAudio = 0, versionSeedAudio = 0;
     };
 
     void surCycle (int onglet, int64_t cycle, bool suite, double cycleNoires, double npm) noexcept;
@@ -166,7 +189,14 @@ private:
     std::array<courbes::Courbe, nombreOnglets> courbePartagee;
     std::array<courbes::Reglage, nombreOnglets> reglagePartage;
     std::array<int, nombreOnglets> famillePartagee {};
-    std::array<std::atomic<int>, nombreOnglets> versionCourbe {}, famille {}, membre {};
+    std::array<std::atomic<int>, nombreOnglets> versionCourbe {}, famille {}, membre {}, versionSeed {};
+    std::array<Seed, nombreOnglets> seedInterface;
+    std::array<std::vector<Seed>, nombreOnglets> seedsStockees;
+    std::array<courbes::Courbe, nombreOnglets> seedPartagee;
+    std::array<courbes::Reglage, nombreOnglets> reglageSeedPartage;
+    std::array<int, nombreOnglets> familleSeedPartagee {};
+    std::array<std::array<std::atomic<bool>, courbes::nombreFamilles>, nombreOnglets> soloPropre {};
+    std::array<std::atomic<bool>, courbes::nombreFamilles> soloCommun {};
 
     // Retour vers l'interface de ce que joue l'evolution.
     mutable juce::SpinLock verrouLecture;

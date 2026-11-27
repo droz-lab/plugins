@@ -785,20 +785,35 @@ inline void inverser (Courbe& c) noexcept
         c.point (i).y = 1.0f - c.point (i).y;
 }
 
-/** Joue la courbe a l'envers dans le temps. */
+/** Joue la courbe a l'envers dans le temps : valeur(t) devient valeur(1 - t).
+    Chaque segment a -> b devient un segment qui part de l'image de b et finit sur l'image de a :
+    une courbe garde sa forme (tension opposee), une marche tient la valeur de a. Quand le segment
+    suivant ne repart pas de la bonne valeur, un point de saut est ajoute au meme endroit. */
 inline void retourner (Courbe& c) noexcept
 {
     const int n = c.taille();
     if (n < 2)
         return;
     Courbe r;
-    for (int i = 0; i < n; ++i)
+    // Segments pris dans l'ordre du temps a l'envers : du dernier (qui boucle) au premier.
+    for (int i = n - 1; i >= 0; --i)
     {
-        // Le segment qui partait du point i (vers i+1) part maintenant de l'image de i+1.
-        const auto& source = c.point (i);
-        const auto& arrivee = c.point ((i + 1) % n);
-        const float x = arrivee.x <= 0.0f ? 0.0f : 1.0f - arrivee.x;
-        r.ajouter (x, arrivee.y, -source.tension, source.type);
+        const auto& a = c.point (i);
+        const auto& b = c.point ((i + 1) % n);
+        const float bx = i == n - 1 ? b.x + 1.0f : b.x;
+        float debut = 1.0f - bx;
+        if (debut < 0.0f)
+            debut += 1.0f; // le premier point n'est pas en 0 : le segment qui boucle repart en fin de cycle
+        const float fin = 1.0f - a.x;
+        const bool marche = a.type == Segment::marche;
+        r.ajouter (debut, marche ? a.y : b.y, marche ? 0.0f : -a.tension, a.type);
+
+        // Valeur de depart du segment suivant (a l'envers) : si elle differe de a.y, il faut un saut.
+        const int precedent = (i - 1 + n) % n;
+        const auto& z = c.point (precedent);
+        const float departSuivant = z.type == Segment::marche ? z.y : a.y;
+        if (! marche && std::abs (departSuivant - a.y) > 1.0e-5f)
+            r.ajouter (std::min (fin, 0.9999f) - (fin >= 0.9999f ? 1.0e-4f : 0.0f), a.y, 0.0f, Segment::marche);
     }
     r.trier();
     c = r;

@@ -126,7 +126,17 @@ const std::vector<Duree>& PluginProcessor::longueurs()
         { "1/4", 1.0, 0, false },             { "1/2 T", 4.0 / 3.0, 0, true },      { "1/2", 2.0, 0, false },
         { "1 mesure T", 0, 2.0 / 3.0, true }, { "1 mesure", 0, 1, false },          { "2 mesures T", 0, 4.0 / 3.0, true },
         { "2 mesures", 0, 2, false },         { "4 mesures", 0, 4, false },         { "8 mesures", 0, 8, false },
-        { "16 mesures", 0, 16, false },
+        { "16 mesures", 0, 16, false },       { "32 mesures", 0, 32, false },
+    };
+    return liste;
+}
+
+const std::vector<std::pair<const char*, double>>& PluginProcessor::mesuresEvolution()
+{
+    static const std::vector<std::pair<const char*, double>> liste = {
+        { "1/4 mesure", 0.25 }, { "1/2 mesure", 0.5 }, { "1 mesure", 1.0 },   { "2 mesures", 2.0 },   { "3 mesures", 3.0 },
+        { "4 mesures", 4.0 },   { "6 mesures", 6.0 },  { "8 mesures", 8.0 },  { "12 mesures", 12.0 }, { "16 mesures", 16.0 },
+        { "32 mesures", 32.0 },
     };
     return liste;
 }
@@ -197,6 +207,13 @@ PluginProcessor::PluginProcessor()
         versionCourbe[static_cast<size_t> (t)] = 1;
         lectureUI[static_cast<size_t> (t)].jouee = v.base;
         lectureUI[static_cast<size_t> (t)].familleJouee = f;
+        lectureUI[static_cast<size_t> (t)].reglageJouee = v.rBase;
+        seedInterface[static_cast<size_t> (t)] = { v.base, f, v.rBase, {} };
+        seedPartagee[static_cast<size_t> (t)] = v.base;
+        reglageSeedPartage[static_cast<size_t> (t)] = v.rBase;
+        familleSeedPartagee[static_cast<size_t> (t)] = f;
+        versionSeed[static_cast<size_t> (t)] = 1;
+        visible[static_cast<size_t> (t)] = t == 0; // comme "actif" : seul l'onglet 1 au depart
     }
 }
 
@@ -251,7 +268,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
 
     layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "evol_rythme", 1 }, "Evolution : rythme",
                                                               juce::StringArray { "Chaque iteration", "Toutes les N mesures" }, 0));
-    layout.add (std::make_unique<juce::AudioParameterInt> (juce::ParameterID { "evol_mesures", 1 }, "Evolution : mesures", 1, 16, 1));
+    {
+        juce::StringArray noms;
+        for (const auto& m : mesuresEvolution())
+            noms.add (m.first);
+        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "evol_mesures", 1 }, "Evolution : tous les", noms, 2));
+    }
     layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "ecoute_on", 1 }, "Ecoute",
                                                               juce::StringArray { "Non", "Oui" }, 0));
 
@@ -303,6 +325,22 @@ void PluginProcessor::setEvo (int t, bool communs, int champ, float v)
     evoPropre[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))][static_cast<size_t> (champ)] = juce::jlimit (mini, maxi, v);
 }
 
+bool PluginProcessor::getSolo (int t, bool communs, int f) const
+{
+    f = juce::jlimit (0, courbes::nombreFamilles - 1, f);
+    return communs ? soloCommun[static_cast<size_t> (f)].load()
+                   : soloPropre[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))][static_cast<size_t> (f)].load();
+}
+
+void PluginProcessor::setSolo (int t, bool communs, int f, bool solo)
+{
+    f = juce::jlimit (0, courbes::nombreFamilles - 1, f);
+    if (communs)
+        soloCommun[static_cast<size_t> (f)] = solo;
+    else
+        soloPropre[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))][static_cast<size_t> (f)] = solo;
+}
+
 courbes::Evolution PluginProcessor::lireEvolution (int t, bool communs, int& cycles) const noexcept
 {
     const auto lit = [this, t, communs] (int c)
@@ -316,8 +354,14 @@ courbes::Evolution PluginProcessor::lireEvolution (int t, bool communs, int& cyc
     e.varier = lit (evo::varier);
     e.changer = lit (evo::changer);
     e.intensite = lit (evo::intensite) * 0.01f;
+    bool unSolo = false;
     for (int f = 0; f < courbes::nombreFamilles; ++f)
-        e.poids[static_cast<size_t> (f)] = lit (evo::poids0 + f);
+        unSolo = unSolo || (communs ? soloCommun[static_cast<size_t> (f)].load() : soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)].load());
+    for (int f = 0; f < courbes::nombreFamilles; ++f)
+    {
+        const bool solo = communs ? soloCommun[static_cast<size_t> (f)].load() : soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)].load();
+        e.poids[static_cast<size_t> (f)] = unSolo ? (solo ? 1.0f : 0.0f) : lit (evo::poids0 + f);
+    }
     cycles = juce::jmax (1, juce::roundToInt (lit (evo::cycles)));
     return e;
 }
@@ -341,10 +385,6 @@ void PluginProcessor::prepareToPlay (double sampleRate, int)
         v.decalage.snap (lire (t, phase) * 0.01f);
         v.bas.snap (lire (t, min) * 0.01f);
         v.haut.snap (lire (t, max) * 0.01f);
-        v.jouee = v.base;
-        v.rJouee = v.rBase;
-        v.fJouee = v.fBase;
-        v.joueeEstLaBase = true;
         v.prochaineValide = false;
         v.sortie.snap (v.bas.current() + (v.haut.current() - v.bas.current()) * v.jouee.valeur (v.decalage.current()));
         v.valeur = v.sortie.current();
@@ -372,7 +412,9 @@ void PluginProcessor::preparerProchaine (int t, int64_t apres, double cycle, dou
     {
         // Toutes les N mesures, pour toutes les courbes : premier debut de cycle a partir de la prochaine
         // frontiere de N mesures.
-        const double bloc = juce::jmax (1.0, static_cast<double> (std::round (pMesures->load()))) * npm;
+        const auto& liste = mesuresEvolution();
+        const int index = juce::jlimit (0, static_cast<int> (liste.size()) - 1, juce::roundToInt (pMesures->load()));
+        const double bloc = liste[static_cast<size_t> (index)].second * npm;
         const double debutCycle = static_cast<double> (apres) * cycle;
         const double frontiere = (std::floor (debutCycle / bloc + 1.0e-9) + 1.0) * bloc;
         m = static_cast<int64_t> (std::ceil (frontiere / cycle - 1.0e-9));
@@ -445,12 +487,9 @@ void PluginProcessor::surCycle (int t, int64_t cycle, bool suite, double cycleN,
     auto& v = voix[static_cast<size_t> (t)];
     if (lire (t, evolution) < 0.5f)
     {
-        if (! v.joueeEstLaBase || v.prochaineValide)
+        // Evolution eteinte : on garde la courbe en cours telle quelle.
+        if (v.prochaineValide)
         {
-            v.jouee = v.base;
-            v.rJouee = v.rBase;
-            v.fJouee = v.fBase;
-            v.joueeEstLaBase = true;
             v.prochaineValide = false;
             v.aPublier = true;
         }
@@ -459,7 +498,7 @@ void PluginProcessor::surCycle (int t, int64_t cycle, bool suite, double cycleN,
 
     if (! suite)
     {
-        // Debut de lecture ou saut dans le temps : on repart de la courbe de base,
+        // Debut de lecture ou saut dans le temps : on repart de la seed,
         // pour que chaque lecture depuis le meme endroit donne la meme suite.
         v.jouee = v.base;
         v.rJouee = v.rBase;
@@ -489,6 +528,8 @@ void PluginProcessor::publier (int t) noexcept
     auto& l = lectureUI[static_cast<size_t> (t)];
     l.jouee = v.jouee;
     l.familleJouee = v.fJouee;
+    l.reglageJouee = v.rJouee;
+    l.versionCourbe = v.versionAudio;
     l.joueeEstLaBase = v.joueeEstLaBase;
     l.prochaineValide = v.prochaineValide;
     if (v.prochaineValide)
@@ -547,18 +588,27 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             const juce::SpinLock::ScopedTryLockType essai (verrouPartage);
             if (essai.isLocked())
             {
-                v.base = courbePartagee[static_cast<size_t> (t)];
-                v.rBase = reglagePartage[static_cast<size_t> (t)];
-                v.fBase = famillePartagee[static_cast<size_t> (t)];
-                v.jouee = v.base;
-                v.rJouee = v.rBase;
-                v.fJouee = v.fBase;
-                v.joueeEstLaBase = true;
+                // Courbe en cours modifiee dans l'editeur : elle joue tout de suite, l'evolution repart d'elle.
+                v.jouee = courbePartagee[static_cast<size_t> (t)];
+                v.rJouee = reglagePartage[static_cast<size_t> (t)];
+                v.fJouee = famillePartagee[static_cast<size_t> (t)];
+                v.joueeEstLaBase = false;
                 v.prochaineValide = false;
                 v.versionAudio = version.load (std::memory_order_relaxed);
                 v.aPublier = true;
                 if (v.dernierCycle != std::numeric_limits<int64_t>::min() && lire (t, evolution) > 0.5f)
                     preparerProchaine (t, v.dernierCycle, cycleNoires (t, npm), npm);
+            }
+        }
+        if (v.versionSeedAudio != versionSeed[static_cast<size_t> (t)].load (std::memory_order_acquire))
+        {
+            const juce::SpinLock::ScopedTryLockType essai (verrouPartage);
+            if (essai.isLocked())
+            {
+                v.base = seedPartagee[static_cast<size_t> (t)];
+                v.rBase = reglageSeedPartage[static_cast<size_t> (t)];
+                v.fBase = familleSeedPartagee[static_cast<size_t> (t)];
+                v.versionSeedAudio = versionSeed[static_cast<size_t> (t)].load (std::memory_order_relaxed);
             }
         }
 
@@ -699,6 +749,54 @@ void PluginProcessor::getLecture (int t, Lecture& l) const
     l = lectureUI[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))];
 }
 
+PluginProcessor::Seed PluginProcessor::getSeed (int t) const
+{
+    const juce::ScopedLock sl (verrouInterface);
+    return seedInterface[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))];
+}
+
+void PluginProcessor::setSeed (int t, const Seed& s)
+{
+    t = juce::jlimit (0, nombreOnglets - 1, t);
+    Seed propre = s;
+    for (int i = 0; i < propre.courbe.taille(); ++i)
+        propre.courbe.point (i).choisi = false;
+    {
+        const juce::ScopedLock sl (verrouInterface);
+        seedInterface[static_cast<size_t> (t)] = propre;
+    }
+    {
+        const juce::SpinLock::ScopedLockType sl (verrouPartage);
+        seedPartagee[static_cast<size_t> (t)] = propre.courbe;
+        reglageSeedPartage[static_cast<size_t> (t)] = propre.reglage;
+        familleSeedPartagee[static_cast<size_t> (t)] = propre.famille;
+    }
+    versionSeed[static_cast<size_t> (t)].fetch_add (1, std::memory_order_release);
+}
+
+std::vector<PluginProcessor::Seed> PluginProcessor::getSeedsStockees (int t) const
+{
+    const juce::ScopedLock sl (verrouInterface);
+    return seedsStockees[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))];
+}
+
+void PluginProcessor::stockerSeed (int t, const Seed& s)
+{
+    const juce::ScopedLock sl (verrouInterface);
+    auto& liste = seedsStockees[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))];
+    liste.push_back (s);
+    if (liste.size() > 32)
+        liste.erase (liste.begin());
+}
+
+void PluginProcessor::supprimerSeed (int t, int index)
+{
+    const juce::ScopedLock sl (verrouInterface);
+    auto& liste = seedsStockees[static_cast<size_t> (juce::jlimit (0, nombreOnglets - 1, t))];
+    if (index >= 0 && index < static_cast<int> (liste.size()))
+        liste.erase (liste.begin() + index);
+}
+
 juce::AudioProcessorEditor* PluginProcessor::createEditor()
 {
     return new PluginEditor (*this);
@@ -714,10 +812,37 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("aimant", aimant.load(), nullptr);
     state.setProperty ("onglet_affiche", ongletAffiche.load(), nullptr);
     state.setProperty ("graine_evolution", static_cast<juce::int64> (graineEvolution.load()), nullptr);
+    state.setProperty ("insectes", insectes.load(), nullptr);
+    state.setProperty ("panneau_evolution", panneauEvolution.load(), nullptr);
+    {
+        juce::String solos;
+        for (int f = 0; f < courbes::nombreFamilles; ++f)
+            solos << (soloCommun[static_cast<size_t> (f)].load() ? "1" : "0");
+        state.setProperty ("solos", solos, nullptr);
+    }
 
     for (int i = state.getNumChildren(); --i >= 0;)
-        if (state.getChild (i).hasType ("COURBE") || state.getChild (i).hasType ("EVOLUTION"))
+        if (state.getChild (i).hasType ("COURBE") || state.getChild (i).hasType ("EVOLUTION") || state.getChild (i).hasType ("SEED"))
             state.removeChild (i, nullptr);
+
+    const auto seedVersArbre = [] (const Seed& s, int t, bool stockee)
+    {
+        juce::ValueTree a ("SEED");
+        a.setProperty ("onglet", t, nullptr);
+        a.setProperty ("stockee", stockee, nullptr);
+        a.setProperty ("nom", s.nom, nullptr);
+        a.setProperty ("points", courbeVersTexte (s.courbe), nullptr);
+        a.setProperty ("famille", s.famille, nullptr);
+        a.setProperty ("graine", static_cast<juce::int64> (s.reglage.graine), nullptr);
+        a.setProperty ("reglages", reglageVersTexte (s.reglage), nullptr);
+        return a;
+    };
+    for (int t = 0; t < nombreOnglets; ++t)
+    {
+        state.appendChild (seedVersArbre (getSeed (t), t, false), nullptr);
+        for (const auto& s : getSeedsStockees (t))
+            state.appendChild (seedVersArbre (s, t, true), nullptr);
+    }
 
     for (int t = 0; t < nombreOnglets; ++t)
     {
@@ -737,6 +862,11 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         for (int c = 0; c < evo::total; ++c)
             valeurs.add (juce::String (evoPropre[static_cast<size_t> (t)][static_cast<size_t> (c)].load(), 2));
         e.setProperty ("valeurs", valeurs.joinIntoString (" "), nullptr);
+        juce::String solos;
+        for (int f = 0; f < courbes::nombreFamilles; ++f)
+            solos << (soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)].load() ? "1" : "0");
+        e.setProperty ("solos", solos, nullptr);
+        e.setProperty ("visible", visible[static_cast<size_t> (t)].load(), nullptr);
         state.appendChild (e, nullptr);
     }
 
@@ -758,6 +888,18 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     aimant = static_cast<bool> (state.getProperty ("aimant", true));
     ongletAffiche = juce::jlimit (0, nombreOnglets - 1, static_cast<int> (state.getProperty ("onglet_affiche", 0)));
     graineEvolution = static_cast<uint32_t> (static_cast<juce::int64> (state.getProperty ("graine_evolution", 12345)));
+    insectes = static_cast<bool> (state.getProperty ("insectes", true));
+    panneauEvolution = static_cast<bool> (state.getProperty ("panneau_evolution", true));
+    {
+        const auto solos = state.getProperty ("solos", "").toString();
+        for (int f = 0; f < courbes::nombreFamilles; ++f)
+            soloCommun[static_cast<size_t> (f)] = solos[f] == '1';
+    }
+    {
+        const juce::ScopedLock sl (verrouInterface);
+        for (auto& l : seedsStockees)
+            l.clear();
+    }
 
     for (int i = 0; i < state.getNumChildren(); ++i)
     {
@@ -773,8 +915,26 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                            texteVersReglage (enfant["reglages"].toString(),
                                              static_cast<uint32_t> (static_cast<juce::int64> (enfant.getProperty ("graine", 1)))));
         }
+        else if (enfant.hasType ("SEED"))
+        {
+            Seed s;
+            s.nom = enfant["nom"].toString();
+            s.famille = juce::jlimit (0, courbes::nombreFamilles - 1, static_cast<int> (enfant.getProperty ("famille", 0)));
+            s.reglage = texteVersReglage (enfant["reglages"].toString(), static_cast<uint32_t> (static_cast<juce::int64> (enfant.getProperty ("graine", 1))));
+            if (texteVersCourbe (enfant["points"].toString(), s.courbe))
+            {
+                if (static_cast<bool> (enfant.getProperty ("stockee", false)))
+                    stockerSeed (t, s);
+                else
+                    setSeed (t, s);
+            }
+        }
         else if (enfant.hasType ("EVOLUTION"))
         {
+            const auto solos = enfant["solos"].toString();
+            for (int f = 0; f < courbes::nombreFamilles; ++f)
+                soloPropre[static_cast<size_t> (t)][static_cast<size_t> (f)] = solos[f] == '1';
+            visible[static_cast<size_t> (t)] = static_cast<bool> (enfant.getProperty ("visible", t == 0));
             const auto v = juce::StringArray::fromTokens (enfant["valeurs"].toString(), " ", "");
             for (int c = 0; c < evo::total && c < v.size(); ++c)
             {
@@ -785,7 +945,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         }
     }
     for (int i = state.getNumChildren(); --i >= 0;)
-        if (state.getChild (i).hasType ("COURBE") || state.getChild (i).hasType ("EVOLUTION"))
+        if (state.getChild (i).hasType ("COURBE") || state.getChild (i).hasType ("EVOLUTION") || state.getChild (i).hasType ("SEED"))
             state.removeChild (i, nullptr);
     apvts.replaceState (state);
 }

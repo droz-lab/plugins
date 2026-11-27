@@ -40,13 +40,24 @@ class BoutonOnglet final : public juce::Button
 {
 public:
     explicit BoutonOnglet (int index);
-    void setInfos (bool actif, int cc, bool evolution);
+    void setInfos (bool actif, int cc, bool evolution, bool visible);
     void paintButton (juce::Graphics&, bool survol, bool appui) override;
 
 private:
     int index;
-    bool actif = false, evolution = false;
+    bool actif = false, evolution = false, visible = true;
     int cc = 0;
+};
+
+/** Fleche Annuler (gauche) ou Retablir (droite), dessinee. */
+class BoutonFleche final : public juce::Button
+{
+public:
+    explicit BoutonFleche (bool versLaDroite);
+    void paintButton (juce::Graphics&, bool survol, bool appui) override;
+
+private:
+    bool droite;
 };
 
 /** Petite vue d'une courbe, sans edition (courbe jouee, prochaine courbe). */
@@ -81,6 +92,8 @@ public:
     void setLecture (int onglet, float phase);
     void setGrille (double cases, double casesParTemps, double casesParMesure);
     void setAimant (bool a) noexcept { aimant = a; }
+    void setCrayon (bool c) noexcept { crayon = c; }
+    void setInsectes (bool i) { insectes = i; repaint(); }
     bool enTrainDeModifier() const noexcept { return mode != Mode::rien; }
     int nombreChoisis() const noexcept;
 
@@ -102,7 +115,8 @@ private:
         deplacer,
         etirer,
         tension,
-        cadre
+        cadre,
+        dessin
     };
     enum Poignee : int
     {
@@ -141,6 +155,7 @@ private:
     void debut();
     void supprimerSelection();
     void menuPoint (Ref);
+    void appliquerTrace();
     juce::Path chemin (const courbes::Courbe&) const;
 
     std::array<Calque, nombreOnglets> calques, depart;
@@ -148,7 +163,8 @@ private:
     courbes::Courbe jouee;
     bool afficheJouee = false;
     double cases = 16.0, casesParTemps = 4.0, casesParMesure = 16.0;
-    bool aimant = true;
+    bool aimant = true, crayon = false, insectes = true;
+    std::vector<juce::Point<float>> trace; // trait du crayon, en coordonnees courbe
     Ref survole, saisi;
     Mode mode = Mode::rien;
     int poignee = aucune;
@@ -226,6 +242,9 @@ private:
     void majLongueurs();
     void majGrille();
     void menuMesCourbes();
+    void menuDesSeeds();
+    PluginProcessor::Seed seedActuelle() const;
+    bool evolutionAllumee (int t) const;
     juce::File fichierMesCourbes() const;
 
     // Evolution.
@@ -253,7 +272,8 @@ private:
     std::array<Reglette, courbes::nombreReglages> reglagesFamille;
 
     // Outils.
-    juce::TextButton boutonAnnuler, boutonRetablir, boutonInverser, boutonRetourner, boutonDoubler, boutonMoitie,
+    BoutonFleche boutonAnnuler { false }, boutonRetablir { true };
+    juce::TextButton boutonCrayon, boutonVisible, boutonInsectes, boutonPanneau, boutonInverser, boutonRetourner, boutonDoubler, boutonMoitie,
         boutonCopier, boutonColler, boutonActif, boutonMulti;
     std::unique_ptr<AttacheBouton> attacheActif;
 
@@ -282,7 +302,9 @@ private:
     std::unique_ptr<AttacheSlider> attacheCc, attacheCanal;
 
     // Evolution.
-    juce::TextButton evolution, lie, nouvelleSuite, suitePrecedente;
+    juce::TextButton evolution, lie, nouvelleSuite, suitePrecedente, revenirSeed, garderSeed, menuSeeds, aucunSolo;
+    juce::ComboBox mesuresEvo;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attacheMesures;
     std::unique_ptr<AttacheBouton> attacheEvolution, attacheLie;
     juce::Label nomSuite, titreReglages, titreIssues, titreFamilles, nomCycles;
     juce::ComboBox rythme;

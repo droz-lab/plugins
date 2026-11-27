@@ -197,15 +197,45 @@ BoutonOnglet::BoutonOnglet (int i) : juce::Button ("Onglet " + juce::String (i +
     setClickingTogglesState (false);
 }
 
-void BoutonOnglet::setInfos (bool a, int c, bool e)
+void BoutonOnglet::setInfos (bool a, int c, bool e, bool v)
 {
-    if (a != actif || c != cc || e != evolution)
+    if (a != actif || c != cc || e != evolution || v != visible)
     {
         actif = a;
         cc = c;
         evolution = e;
+        visible = v;
         repaint();
     }
+}
+
+BoutonFleche::BoutonFleche (bool versLaDroite) : juce::Button (versLaDroite ? "Retablir" : "Annuler"), droite (versLaDroite) {}
+
+void BoutonFleche::paintButton (juce::Graphics& g, bool survol, bool appui)
+{
+    auto r = getLocalBounds().toFloat().reduced (0.5f);
+    auto fond = palette::panneauClair;
+    if (survol)
+        fond = fond.brighter (0.12f);
+    if (appui)
+        fond = fond.darker (0.15f);
+    g.setColour (isEnabled() ? fond : fond.withAlpha (0.4f));
+    g.fillRoundedRectangle (r, 5.0f);
+    g.setColour (palette::grilleForte);
+    g.drawRoundedRectangle (r, 5.0f, 1.0f);
+
+    // Arc avec une pointe, vers la gauche (annuler) ou la droite (retablir).
+    const auto c = r.getCentre();
+    const float rayon = juce::jmin (r.getWidth(), r.getHeight()) * 0.26f;
+    const float sens = droite ? 1.0f : -1.0f;
+    juce::Path arc;
+    arc.addCentredArc (c.x, c.y + rayon * 0.35f, rayon, rayon, 0.0f, -sens * 1.9f, sens * 0.9f, true);
+    g.setColour (isEnabled() ? palette::texte : palette::texteDoux.withAlpha (0.5f));
+    g.strokePath (arc, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    const auto bout = arc.getPointAlongPath (0.0f);
+    juce::Path pointe;
+    pointe.addTriangle (bout.x - sens * 5.0f, bout.y, bout.x + sens * 2.0f, bout.y - 5.0f, bout.x + sens * 2.0f, bout.y + 5.0f);
+    g.fillPath (pointe);
 }
 
 void BoutonOnglet::paintButton (juce::Graphics& g, bool survol, bool)
@@ -221,6 +251,11 @@ void BoutonOnglet::paintButton (juce::Graphics& g, bool survol, bool)
     auto contenu = r.reduced (6.0f, 4.0f);
     const auto icone = contenu.removeFromLeft (contenu.getHeight());
     dessinerInsecte (g, index, icone, actif ? couleur : couleur.withAlpha (0.35f));
+    if (! visible)
+    {
+        g.setColour (palette::texteDoux);
+        g.drawLine (icone.getX(), icone.getBottom(), icone.getRight(), icone.getY(), 1.5f); // barre : cache dans l'affichage multicourbe
+    }
     contenu.removeFromLeft (6.0f);
     g.setColour (actif ? palette::texte : palette::texteDoux);
     g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
@@ -573,7 +608,10 @@ void VueCourbe::paint (juce::Graphics& g)
         g.setColour (col.withAlpha (0.75f));
         g.strokePath (chemin (c.courbe), juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         const auto tete = versEcran (c.lecture, c.courbe.valeur (c.lecture));
-        g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (tete));
+        if (insectes)
+            dessinerInsecte (g, t, juce::Rectangle<float> (22.0f, 22.0f).withCentre (tete.translated (0.0f, -9.0f)), col);
+        else
+            g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (tete));
     }
 
     // Courbe principale, remplie.
@@ -600,8 +638,13 @@ void VueCourbe::paint (juce::Graphics& g)
     const auto tete = versEcran (lecture, lue.valeur (lecture));
     g.setColour (palette::lecture.withAlpha (0.35f));
     g.drawVerticalLine (juce::roundToInt (tete.x), z.getY(), z.getBottom());
-    g.setColour (palette::lecture);
-    g.fillEllipse (juce::Rectangle<float> (9.0f, 9.0f).withCentre (tete));
+    if (insectes)
+        dessinerInsecte (g, actif, juce::Rectangle<float> (28.0f, 28.0f).withCentre (tete.translated (0.0f, -12.0f)), palette::lecture);
+    else
+    {
+        g.setColour (palette::lecture);
+        g.fillEllipse (juce::Rectangle<float> (9.0f, 9.0f).withCentre (tete));
+    }
 
     // Points des courbes modifiables (le principal par-dessus).
     for (int k = nombreOnglets; --k >= 0;)
@@ -644,6 +687,15 @@ void VueCourbe::paint (juce::Graphics& g)
                         juce::Point<float> (b.getX(), b.getCentreY()), juce::Point<float> (b.getRight(), b.getCentreY()) })
             g.fillRect (juce::Rectangle<float> (taillePoignee, taillePoignee).withCentre (p));
     }
+    if (mode == Mode::dessin && trace.size() > 1)
+    {
+        juce::Path p;
+        p.startNewSubPath (versEcran (trace.front().x, trace.front().y));
+        for (const auto& q : trace)
+            p.lineTo (versEcran (q.x, q.y));
+        g.setColour (palette::lecture);
+        g.strokePath (p, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
     if (mode == Mode::cadre)
     {
         g.setColour (palette::texte.withAlpha (0.08f));
@@ -668,6 +720,8 @@ void VueCourbe::mouseMove (const juce::MouseEvent& e)
         setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
     else if (p & (haut | bas))
         setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+    else if (crayon)
+        setMouseCursor (juce::MouseCursor::CrosshairCursor);
     else if (s.valide())
         setMouseCursor (juce::MouseCursor::DraggingHandCursor);
     else if (courbeSous (e.position) >= 0)
@@ -687,6 +741,15 @@ void VueCourbe::mouseDown (const juce::MouseEvent& e)
     {
         if (saisi.valide())
             menuPoint (saisi);
+        return;
+    }
+
+    if (crayon)
+    {
+        debut();
+        const auto c = versCourbe (e.position);
+        trace = { { juce::jlimit (0.0f, 0.9999f, c.x), juce::jlimit (0.0f, 1.0f, c.y) } };
+        mode = Mode::dessin;
         return;
     }
 
@@ -738,6 +801,14 @@ void VueCourbe::mouseDrag (const juce::MouseEvent& e)
     switch (mode)
     {
         case Mode::rien: return;
+
+        case Mode::dessin:
+        {
+            const auto c = versCourbe (e.position);
+            trace.push_back ({ juce::jlimit (0.0f, 0.9999f, c.x), juce::jlimit (0.0f, 1.0f, c.y) });
+            repaint();
+            return;
+        }
 
         case Mode::cadre:
         {
@@ -840,6 +911,15 @@ void VueCourbe::mouseDrag (const juce::MouseEvent& e)
 
 void VueCourbe::mouseUp (const juce::MouseEvent& e)
 {
+    if (mode == Mode::dessin)
+    {
+        appliquerTrace();
+        trace.clear();
+        mode = Mode::rien;
+        dejaNote = false;
+        repaint();
+        return;
+    }
     // Clic simple sur un point deja choisi, sans glisser : il devient le seul choisi.
     if (mode == Mode::deplacer && saisi.valide() && e.getDistanceFromDragStart() < 2 && ! e.mods.isCommandDown())
     {
@@ -853,8 +933,107 @@ void VueCourbe::mouseUp (const juce::MouseEvent& e)
     repaint();
 }
 
+namespace
+{
+/** Douglas-Peucker : garde les points qui s'ecartent de plus de `tolerance` de la ligne simplifiee. */
+std::vector<juce::Point<float>> simplifier (const std::vector<juce::Point<float>>& p, float tolerance)
+{
+    const size_t n = p.size();
+    if (n < 3)
+        return p;
+    std::vector<bool> garde (n, false);
+    garde.front() = garde.back() = true;
+    std::vector<std::pair<size_t, size_t>> pile { { 0, n - 1 } };
+    while (! pile.empty())
+    {
+        const auto [a, b] = pile.back();
+        pile.pop_back();
+        float pire = 0.0f;
+        size_t indexPire = a;
+        const juce::Line<float> ligne (p[a], p[b]);
+        for (size_t i = a + 1; i < b; ++i)
+        {
+            juce::Point<float> proche;
+            const float d = ligne.getDistanceFromPoint (p[i], proche);
+            if (d > pire)
+            {
+                pire = d;
+                indexPire = i;
+            }
+        }
+        if (pire > tolerance)
+        {
+            garde[indexPire] = true;
+            pile.push_back ({ a, indexPire });
+            pile.push_back ({ indexPire, b });
+        }
+    }
+    std::vector<juce::Point<float>> r;
+    for (size_t i = 0; i < n; ++i)
+        if (garde[i])
+            r.push_back (p[i]);
+    return r;
+}
+} // namespace
+
+/** Le trait du crayon remplace la courbe sur la zone dessinee, avec le moins de points possible. */
+void VueCourbe::appliquerTrace()
+{
+    if (trace.size() < 2)
+        return;
+    // Une valeur par petite tranche de temps (la derniere dessinee gagne) : le trait devient une fonction du temps.
+    constexpr int tranches = 512;
+    std::array<float, tranches> y {};
+    std::array<bool, tranches> vu {};
+    for (size_t i = 1; i < trace.size(); ++i)
+    {
+        const auto a = trace[i - 1], b = trace[i];
+        const int ia = juce::jlimit (0, tranches - 1, static_cast<int> (a.x * tranches));
+        const int ib = juce::jlimit (0, tranches - 1, static_cast<int> (b.x * tranches));
+        const int pas = ib >= ia ? 1 : -1;
+        for (int k = ia;; k += pas)
+        {
+            const float u = ia == ib ? 1.0f : static_cast<float> (k - ia) / static_cast<float> (ib - ia);
+            y[static_cast<size_t> (k)] = a.y + (b.y - a.y) * u;
+            vu[static_cast<size_t> (k)] = true;
+            if (k == ib)
+                break;
+        }
+    }
+    std::vector<juce::Point<float>> points;
+    for (int k = 0; k < tranches; ++k)
+        if (vu[static_cast<size_t> (k)])
+            points.push_back ({ static_cast<float> (k) / tranches, y[static_cast<size_t> (k)] });
+    if (points.size() < 2)
+        return;
+    const float x0 = points.front().x, x1 = points.back().x;
+
+    auto& c = calques[static_cast<size_t> (actif)].courbe;
+    int gardes = 0;
+    for (int i = 0; i < c.taille(); ++i)
+        if (c.point (i).x < x0 || c.point (i).x > x1)
+            ++gardes;
+    // Simplification : on monte la tolerance jusqu'a tenir dans la limite de points.
+    std::vector<juce::Point<float>> simples;
+    for (float tolerance = 0.008f;; tolerance *= 1.5f)
+    {
+        simples = simplifier (points, tolerance);
+        if (gardes + static_cast<int> (simples.size()) <= courbes::maxPoints || tolerance > 0.5f)
+            break;
+    }
+    for (int i = c.taille(); --i >= 0;)
+        if (c.point (i).x >= x0 && c.point (i).x <= x1)
+            c.retirer (i);
+    for (const auto& q : simples)
+        c.ajouter (q.x, q.y);
+    c.trier();
+    modifie (1u << actif);
+}
+
 void VueCourbe::mouseDoubleClick (const juce::MouseEvent& e)
 {
+    if (crayon)
+        return;
     const auto s = pointSous (e.position);
     if (s.valide())
     {
@@ -981,6 +1160,22 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     version.setFont (juce::FontOptions (12.0f));
     version.setColour (juce::Label::textColourId, palette::texteDoux);
     addAndMakeVisible (version);
+    preparerBascule (boutonInsectes, T ("Insectes"), T ("Les insectes se promènent sur leur courbe pendant la lecture. Éteint : un simple point."));
+    boutonInsectes.setToggleState (processor.insectes.load(), juce::dontSendNotification);
+    boutonInsectes.onClick = [this]
+    {
+        processor.insectes = boutonInsectes.getToggleState();
+        vue.setInsectes (processor.insectes.load());
+    };
+    vue.setInsectes (processor.insectes.load());
+    preparerBascule (boutonPanneau, T ("Évolution"), T ("Afficher ou masquer le panneau Évolution."));
+    boutonPanneau.setToggleState (processor.panneauEvolution.load(), juce::dontSendNotification);
+    boutonPanneau.onClick = [this]
+    {
+        processor.panneauEvolution = boutonPanneau.getToggleState();
+        resized();
+        repaint();
+    };
 
     for (int t = 0; t < nombreOnglets; ++t)
     {
@@ -1008,7 +1203,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (suivant);
     preparerBouton (mesCourbes, T ("Mes courbes"), T ("Enregistrer la courbe pour la retrouver dans tous tes projets, ou en recharger une."),
                     [this] { menuMesCourbes(); });
-    preparerBouton (relancer, T ("Relancer"), T ("Mêmes réglages, nouveau tirage au sort (familles de hasard, gates…)."), [this] { generer (false); });
+    preparerBouton (relancer, T ("Relancer"), T ("Seulement pour les familles Hasard et Gates : nouveau tirage au sort avec les mêmes réglages."), [this] { generer (false); });
     preparerBouton (boutonGenerer, T ("Générer"), T ("Invente une nouvelle forme dans cette famille : tous les réglages au hasard."), [this] { generer (true); });
     nomMembre.setColour (juce::Label::textColourId, palette::texteDoux);
     addAndMakeVisible (nomMembre);
@@ -1025,8 +1220,27 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     }
 
     // Outils.
-    preparerBouton (boutonAnnuler, T ("Annuler"), T ("Annuler la dernière modification de la courbe (Ctrl+Z)."), [this] { annuler(); });
-    preparerBouton (boutonRetablir, T ("Rétablir"), T ("Refaire ce qui a été annulé (Ctrl+Maj+Z)."), [this] { retablir(); });
+    boutonAnnuler.setTooltip (T ("Annuler la dernière modification (Ctrl+Z)."));
+    boutonAnnuler.onClick = [this] { annuler(); };
+    addAndMakeVisible (boutonAnnuler);
+    boutonRetablir.setTooltip (T ("Refaire ce qui a été annulé (Ctrl+Maj+Z)."));
+    boutonRetablir.onClick = [this] { retablir(); };
+    addAndMakeVisible (boutonRetablir);
+    preparerBascule (boutonCrayon, T ("Crayon"), T ("Dessine la courbe à main levée. Les points sont ensuite simplifiés automatiquement."));
+    boutonCrayon.onClick = [this] { vue.setCrayon (boutonCrayon.getToggleState()); };
+    boutonActif.onClick = [this]
+    {
+        // Allumer un onglet le rend aussi visible (on peut ensuite le masquer avec "Visible").
+        if (boutonActif.getToggleState())
+            processor.visible[static_cast<size_t> (onglet)] = true;
+        majCalques();
+    };
+    preparerBascule (boutonVisible, T ("Visible"), T ("Afficher cet onglet dans « Toutes les courbes »."));
+    boutonVisible.onClick = [this]
+    {
+        processor.visible[static_cast<size_t> (onglet)] = boutonVisible.getToggleState();
+        majCalques();
+    };
     preparerBouton (boutonInverser, T ("Inverser"), T ("Retourne la courbe de haut en bas."),
                     [this] { transformer ([] (courbes::Courbe& c) { courbes::inverser (c); return true; }); });
     preparerBouton (boutonRetourner, T ("Retourner"), T ("Joue la courbe à l'envers (de droite à gauche)."),
@@ -1065,13 +1279,15 @@ PluginEditor::PluginEditor (PluginProcessor& p)
             {
                 processor.setCourbe (t, vue.getCourbe (t), processor.getFamille (t), -1, processor.getReglage (t));
                 versionsCalques[static_cast<size_t> (t)] = processor.getVersionCourbe (t);
+                if (! evolutionAllumee (t))
+                    processor.setSeed (t, { vue.getCourbe (t), processor.getFamille (t), processor.getReglage (t), {} });
             }
         }
         majTitreMembre();
     };
     addAndMakeVisible (vue);
 
-    aide.setText (T ("Glisser un point : déplacer  ·  Glisser sur la ligne : courber  ·  Glisser dans le vide : sélectionner  ·  Double-clic : ajouter / supprimer  ·  Clic droit : forme  ·  Maj : sans aimant"),
+    aide.setText (T ("Glisser un point : déplacer  ·  Sur la ligne : courber  ·  Dans le vide : sélectionner  ·  Double-clic : ajouter / supprimer  ·  Clic droit : forme  ·  Maj : sans aimant  ·  Crayon : dessiner"),
                   juce::dontSendNotification);
     aide.setFont (juce::FontOptions (12.0f));
     aide.setColour (juce::Label::textColourId, palette::texteDoux);
@@ -1166,7 +1382,31 @@ PluginEditor::PluginEditor (PluginProcessor& p)
                         suitesPrecedentes.pop_back();
                         majEvolution (true);
                     });
-    addAndMakeVisible (vueJouee);
+    addAndMakeVisible (vueJouee); // la seed
+    preparerBouton (revenirSeed, T ("Revenir à la seed"), T ("Remet la seed comme courbe en cours (l'évolution repart d'elle)."), [this]
+                    {
+                        const auto sd = processor.getSeed (onglet);
+                        Etat e;
+                        e.courbe = sd.courbe;
+                        e.famille = sd.famille;
+                        e.membre = -1;
+                        e.reglage = sd.reglage;
+                        appliquer (e, true);
+                    });
+    preparerBouton (garderSeed, T ("Garder comme seed"), T ("La courbe en cours devient la seed : à chaque relecture, l'évolution repart d'elle."),
+                    [this] { processor.setSeed (onglet, seedActuelle()); majEvolution (true); });
+    preparerBouton (menuSeeds, T ("Seeds"), T ("Stocker la seed, ou reprendre une seed stockée."), [this] { menuDesSeeds(); });
+    preparerBouton (aucunSolo, T ("Aucun solo"), T ("Enlève tous les solos : les chances reviennent aux sliders."), [this]
+                    {
+                        for (int f = 0; f < courbes::nombreFamilles; ++f)
+                            processor.setSolo (onglet, evoCommune(), f, false);
+                        majEvolution (true);
+                    });
+    mesuresEvo.setTooltip (T ("Toutes les courbes changent ensemble, à cet intervalle."));
+    for (int i = 0; i < static_cast<int> (PluginProcessor::mesuresEvolution().size()); ++i)
+        mesuresEvo.addItem (T (PluginProcessor::mesuresEvolution()[static_cast<size_t> (i)].first), i + 1);
+    attacheMesures = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "evol_mesures", mesuresEvo);
+    addAndMakeVisible (mesuresEvo);
     addAndMakeVisible (vueProchaine);
     preparerNom (titreReglages, {});
     titreReglages.setColour (juce::Label::textColourId, palette::texte);
@@ -1250,8 +1490,13 @@ PluginEditor::PluginEditor (PluginProcessor& p)
             }
         };
         addAndMakeVisible (l.slider);
-        preparerBouton (l.seule, T ("seule"), T ("Ne garder que cette famille pour « Changer »."),
-                        [this, f] { reglerFamilles ([f] (int autre) { return autre == f ? 100.0f : 0.0f; }); });
+        preparerBouton (l.seule, "S", T ("Solo, comme sur une table de mixage : seules les familles en solo sont tirées, à parts égales "
+                                         "(une : 100 %, deux : 50 % chacune…)."),
+                        [this, f]
+                        {
+                            processor.setSolo (onglet, evoCommune(), f, ! processor.getSolo (onglet, evoCommune(), f));
+                            majEvolution (true);
+                        });
     }
 
     // Lire la taille gardee AVANT setResizeLimits : il redimensionne la fenetre (encore vide) au minimum,
@@ -1481,7 +1726,7 @@ void PluginEditor::majCalques()
 {
     for (int t = 0; t < nombreOnglets; ++t)
     {
-        const bool visible = t == onglet || (multi && processor.valeur (t, "actif") > 0.5f);
+        const bool visible = t == onglet || (multi && processor.visible[static_cast<size_t> (t)].load());
         if (visible && t != onglet && processor.getVersionCourbe (t) != versionsCalques[static_cast<size_t> (t)])
         {
             vue.setCourbe (t, processor.getCourbe (t));
@@ -1576,6 +1821,70 @@ void PluginEditor::envoyerCourbe()
 {
     processor.setCourbe (onglet, vue.getCourbe (onglet), famille, membre, reglage);
     versionConnue = processor.getVersionCourbe (onglet);
+    // Evolution eteinte : la seed suit la courbe. Allumee : la seed ne change qu'avec "Garder comme seed".
+    if (! evolutionAllumee (onglet))
+        processor.setSeed (onglet, seedActuelle());
+}
+
+bool PluginEditor::evolutionAllumee (int t) const
+{
+    return processor.valeur (t, "evolution") > 0.5f;
+}
+
+PluginProcessor::Seed PluginEditor::seedActuelle() const
+{
+    PluginProcessor::Seed sd;
+    sd.courbe = vue.getCourbe (onglet);
+    sd.famille = famille;
+    sd.reglage = reglage;
+    return sd;
+}
+
+void PluginEditor::menuDesSeeds()
+{
+    const auto stockees = processor.getSeedsStockees (onglet);
+    juce::PopupMenu m, supprimer;
+    m.addItem (1, T ("Stocker la seed actuelle"));
+    for (int i = 0; i < static_cast<int> (stockees.size()); ++i)
+    {
+        if (i == 0)
+            m.addSeparator();
+        m.addItem (100 + i, stockees[static_cast<size_t> (i)].nom);
+        supprimer.addItem (1000 + i, stockees[static_cast<size_t> (i)].nom);
+    }
+    if (! stockees.empty())
+    {
+        m.addSeparator();
+        m.addSubMenu (T ("Supprimer"), supprimer);
+    }
+    juce::Component::SafePointer<PluginEditor> moi (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&menuSeeds), [moi, stockees] (int choix)
+    {
+        if (moi == nullptr || choix == 0)
+            return;
+        const int t = moi->onglet;
+        if (choix == 1)
+        {
+            auto sd = moi->processor.getSeed (t);
+            sd.nom = T ("Seed ") + juce::String (stockees.size() + 1) + " (" + T (courbes::nomFamille (sd.famille)) + ")";
+            moi->processor.stockerSeed (t, sd);
+        }
+        else if (choix >= 1000)
+            moi->processor.supprimerSeed (t, choix - 1000);
+        else if (choix - 100 < static_cast<int> (stockees.size()))
+        {
+            // Une seed stockee devient la seed et la courbe en cours.
+            const auto& sd = stockees[static_cast<size_t> (choix - 100)];
+            moi->processor.setSeed (t, sd);
+            Etat e;
+            e.courbe = sd.courbe;
+            e.famille = sd.famille;
+            e.membre = -1;
+            e.reglage = sd.reglage;
+            moi->appliquer (e, true);
+        }
+        moi->majEvolution (true);
+    });
 }
 
 void PluginEditor::reprendreCourbe()
@@ -1800,6 +2109,14 @@ void PluginEditor::majEvolution (bool forcer)
                                     : processor.getEvo (onglet, c, evo::cycles),
                          juce::dontSendNotification);
 
+    mesuresEvo.setVisible (parMesures && processor.panneauEvolution.load());
+    cycles.setVisible (! parMesures && processor.panneauEvolution.load());
+    nomCycles.setVisible (! parMesures && processor.panneauEvolution.load());
+
+    // Familles : en multi-solo, seules les familles en solo comptent, a parts egales.
+    int solos = 0;
+    for (int f = 0; f < courbes::nombreFamilles; ++f)
+        solos += processor.getSolo (onglet, c, f) ? 1 : 0;
     float totalFamilles = 0.0f;
     for (int f = 0; f < courbes::nombreFamilles; ++f)
         totalFamilles += processor.getEvo (onglet, c, evo::poids0 + f);
@@ -1807,14 +2124,25 @@ void PluginEditor::majEvolution (bool forcer)
     {
         auto& l = poids[static_cast<size_t> (f)];
         const float v = processor.getEvo (onglet, c, evo::poids0 + f);
+        const bool solo = processor.getSolo (onglet, c, f);
         if (forcer || ! l.slider.isMouseButtonDown())
             l.slider.setValue (v, juce::dontSendNotification);
-        l.pourcent.setText (totalFamilles > 0.0f ? juce::String (juce::roundToInt (100.0f * v / totalFamilles)) + " %" : "0 %",
-                            juce::dontSendNotification);
+        l.slider.setEnabled (solos == 0);
+        l.seule.setToggleState (solo, juce::dontSendNotification);
+        const float part = solos > 0 ? (solo ? 100.0f / static_cast<float> (solos) : 0.0f)
+                                     : (totalFamilles > 0.0f ? 100.0f * v / totalFamilles : 0.0f);
+        l.pourcent.setText (juce::String (juce::roundToInt (part)) + " %", juce::dontSendNotification);
     }
+    aucunSolo.setEnabled (solos > 0);
+    for (auto& b : groupeTout)
+        b.setEnabled (solos == 0);
+    for (auto& b : groupeRien)
+        b.setEnabled (solos == 0);
 
-    for (auto* comp : std::initializer_list<juce::Component*> { &vueJouee, &vueProchaine, &nouvelleSuite, &suitePrecedente, &nomSuite })
+    for (auto* comp : std::initializer_list<juce::Component*> { &vueProchaine, &nouvelleSuite, &suitePrecedente, &nomSuite })
         comp->setAlpha (allumee ? 1.0f : 0.4f);
+    const auto sd = processor.getSeed (onglet);
+    vueJouee.setCourbe (&sd.courbe, palette::onglet (onglet), T ("Seed : ") + T (courbes::nomFamille (sd.famille)));
 }
 
 //== Minuteur ====================================================================
@@ -1832,8 +2160,28 @@ void PluginEditor::timerCallback()
         versionLectureConnue = processor.getVersionLecture (onglet);
         PluginProcessor::Lecture l;
         processor.getLecture (onglet, l);
-        vue.setJouee (allumee && ! l.joueeEstLaBase ? &l.jouee : nullptr);
-        vueJouee.setCourbe (&l.jouee, couleur, T ("Joue : ") + T (courbes::nomFamille (l.familleJouee)));
+        // L'evolution a change la courbe : elle remplace la courbe affichee (et devient celle qu'on modifie).
+        // Seulement si l'audio a deja pris nos dernieres modifications, et pas pendant qu'on modifie.
+        if (allumee && ! vue.enTrainDeModifier() && l.versionCourbe >= processor.getVersionCourbe (onglet))
+        {
+            const auto& affichee = vue.getCourbe (onglet);
+            bool pareille = affichee.taille() == l.jouee.taille();
+            for (int i = 0; pareille && i < affichee.taille(); ++i)
+                pareille = std::abs (affichee.point (i).x - l.jouee.point (i).x) < 1.0e-6f && std::abs (affichee.point (i).y - l.jouee.point (i).y) < 1.0e-6f
+                           && std::abs (affichee.point (i).tension - l.jouee.point (i).tension) < 1.0e-6f;
+            if (! pareille)
+            {
+                vue.setCourbe (onglet, l.jouee);
+                famille = l.familleJouee;
+                reglage = l.reglageJouee;
+                membre = -1;
+                modifiee = false;
+                familles.setSelectedId (famille + 1, juce::dontSendNotification);
+                afficherReglages();
+                majTitreMembre();
+                nomMembre.setText (T ("Variante de l'évolution"), juce::dontSendNotification);
+            }
+        }
         if (allumee && l.prochaineValide)
             vueProchaine.setCourbe (&l.prochaine, couleur.withAlpha (0.8f),
                                     T ("Prochaine : ") + T (courbes::nomFamille (l.familleProchaine))
@@ -1841,9 +2189,25 @@ void PluginEditor::timerCallback()
         else
             vueProchaine.setCourbe (nullptr, couleur, T ("Prochaine"));
     }
-    if (! allumee)
-        vue.setJouee (nullptr);
+    vue.setJouee (nullptr);
     majEvolution (false);
+
+    // Autres courbes affichees (multicourbe) : elles suivent aussi leur evolution.
+    for (int t = 0; t < nombreOnglets; ++t)
+    {
+        if (t == onglet || ! multi || ! processor.visible[static_cast<size_t> (t)].load() || ! evolutionAllumee (t) || vue.enTrainDeModifier())
+            continue;
+        PluginProcessor::Lecture l;
+        processor.getLecture (t, l);
+        const auto& affichee = vue.getCourbe (t);
+        bool pareille = affichee.taille() == l.jouee.taille();
+        for (int i = 0; pareille && i < affichee.taille(); ++i)
+            pareille = std::abs (affichee.point (i).x - l.jouee.point (i).x) < 1.0e-6f && std::abs (affichee.point (i).y - l.jouee.point (i).y) < 1.0e-6f;
+        if (! pareille && l.versionCourbe >= processor.getVersionCourbe (t))
+            vue.setCourbe (t, l.jouee);
+    }
+    relancer.setEnabled (courbes::groupeFamille (famille) >= 2);
+    boutonVisible.setToggleState (processor.visible[static_cast<size_t> (onglet)].load(), juce::dontSendNotification);
 
     if ((processor.valeur (onglet, "ternaire") > 0.5f) != ternaireConnu)
         majLongueurs();
@@ -1852,7 +2216,7 @@ void PluginEditor::timerCallback()
 
     for (int t = 0; t < nombreOnglets; ++t)
         onglets[t]->setInfos (processor.valeur (t, "actif") > 0.5f, juce::roundToInt (processor.valeur (t, "cc")),
-                              processor.valeur (t, "evolution") > 0.5f);
+                              processor.valeur (t, "evolution") > 0.5f, processor.visible[static_cast<size_t> (t)].load());
 
     majCalques();
     for (int t = 0; t < nombreOnglets; ++t)
@@ -1867,6 +2231,8 @@ void PluginEditor::timerCallback()
 void PluginEditor::paint (juce::Graphics& g)
 {
     g.fillAll (palette::fond);
+    if (zoneEvolution.isEmpty())
+        return;
     g.setColour (palette::panneau);
     g.fillRoundedRectangle (zoneEvolution.toFloat(), 8.0f);
     g.setColour (palette::onglet (onglet).withAlpha (0.5f));
@@ -1894,20 +2260,43 @@ void PluginEditor::resized()
 
     // Barre d'onglets.
     {
-        auto barre = area.removeFromTop (46);
-        auto gauche = barre.removeFromLeft (170);
-        titre.setBounds (gauche.removeFromTop (28));
-        version.setBounds (gauche);
+        auto barre = area.removeFromTop (48);
+        auto gauche = barre.removeFromLeft (236);
+        titre.setBounds (gauche.removeFromTop (26));
+        gauche.removeFromTop (2);
+        version.setBounds (gauche.removeFromLeft (48));
+        boutonInsectes.setBounds (gauche.removeFromLeft (84).reduced (2, 0));
+        boutonPanneau.setBounds (gauche.removeFromLeft (92).reduced (2, 0));
+        barre.removeFromLeft (6);
         const int w = barre.getWidth() / nombreOnglets;
         for (auto* b : onglets)
             b->setBounds (barre.removeFromLeft (w).reduced (3, 0));
     }
     area.removeFromTop (10);
 
-    // Panneau Evolution a droite.
-    zoneEvolution = area.removeFromRight (330);
-    area.removeFromRight (14);
+    // Panneau Evolution a droite (masquable).
+    const bool panneau = processor.panneauEvolution.load();
+    for (auto* c : std::initializer_list<juce::Component*> { &evolution, &nomSuite, &nouvelleSuite, &suitePrecedente, &vueJouee, &vueProchaine,
+                                                             &revenirSeed, &garderSeed, &menuSeeds, &lie, &coherence.slider, &coherence.nom,
+                                                             &titreReglages, &styles[0], &styles[1], &styles[2], &rythme, &cycles, &nomCycles,
+                                                             &mesuresEvo, &titreIssues, &titreFamilles, &aucunSolo })
+        c->setVisible (panneau);
+    for (auto& l : issues)
+        for (auto* c : std::initializer_list<juce::Component*> { &l.nom, &l.pourcent, &l.slider })
+            c->setVisible (panneau);
+    for (auto& l : poids)
+        for (auto* c : std::initializer_list<juce::Component*> { &l.nom, &l.pourcent, &l.slider, &l.seule })
+            c->setVisible (panneau);
+    for (int g = 0; g < courbes::nombreGroupes; ++g)
+        for (auto* c : std::initializer_list<juce::Component*> { &nomsGroupes[static_cast<size_t> (g)], &groupeTout[static_cast<size_t> (g)],
+                                                                 &groupeRien[static_cast<size_t> (g)] })
+            c->setVisible (panneau);
+
+    zoneEvolution = {};
+    if (panneau)
     {
+        zoneEvolution = area.removeFromRight (340);
+        area.removeFromRight (14);
         auto e = zoneEvolution.reduced (12, 10);
         auto ligne = e.removeFromTop (28);
         evolution.setBounds (ligne.removeFromLeft (100));
@@ -1917,10 +2306,17 @@ void PluginEditor::resized()
         nouvelleSuite.setBounds (ligne.removeFromRight (84));
         nomSuite.setBounds (ligne);
         e.removeFromTop (6);
-        ligne = e.removeFromTop (64);
+        ligne = e.removeFromTop (60);
         vueJouee.setBounds (ligne.removeFromLeft (ligne.getWidth() / 2 - 3));
         ligne.removeFromLeft (6);
         vueProchaine.setBounds (ligne);
+        e.removeFromTop (4);
+        ligne = e.removeFromTop (24);
+        revenirSeed.setBounds (ligne.removeFromLeft (128));
+        ligne.removeFromLeft (4);
+        garderSeed.setBounds (ligne.removeFromLeft (124));
+        ligne.removeFromLeft (4);
+        menuSeeds.setBounds (ligne);
         e.removeFromTop (8);
         ligne = e.removeFromTop (26);
         lie.setBounds (ligne.removeFromLeft (110));
@@ -1931,13 +2327,14 @@ void PluginEditor::resized()
         ligne = e.removeFromTop (26);
         {
             const int w = ligne.getWidth() / 3;
-            for (auto& s : styles)
-                s.setBounds (ligne.removeFromLeft (w).reduced (2, 0));
+            for (auto& st : styles)
+                st.setBounds (ligne.removeFromLeft (w).reduced (2, 0));
         }
         e.removeFromTop (6);
         ligne = e.removeFromTop (24);
         rythme.setBounds (ligne.removeFromLeft (150));
         ligne.removeFromLeft (6);
+        mesuresEvo.setBounds (ligne.withWidth (120));
         cycles.setBounds (ligne.removeFromLeft (84));
         ligne.removeFromLeft (6);
         nomCycles.setBounds (ligne);
@@ -1945,14 +2342,16 @@ void PluginEditor::resized()
         titreIssues.setBounds (e.removeFromTop (18));
         for (auto& l : issues)
         {
-            ligne = e.removeFromTop (21);
+            ligne = e.removeFromTop (20);
             l.nom.setBounds (ligne.removeFromLeft (72));
             l.pourcent.setBounds (ligne.removeFromRight (46));
             l.slider.setBounds (ligne);
         }
         e.removeFromTop (6);
-        titreFamilles.setBounds (e.removeFromTop (18));
-        const int h = juce::jlimit (15, 21, e.getHeight() / (courbes::nombreFamilles + courbes::nombreGroupes));
+        ligne = e.removeFromTop (20);
+        aucunSolo.setBounds (ligne.removeFromRight (86).reduced (0, 1));
+        titreFamilles.setBounds (ligne);
+        const int h = juce::jlimit (14, 21, e.getHeight() / (courbes::nombreFamilles + courbes::nombreGroupes));
         for (int g = 0; g < courbes::nombreGroupes; ++g)
         {
             ligne = e.removeFromTop (h);
@@ -1968,7 +2367,7 @@ void PluginEditor::resized()
                 ligne = e.removeFromTop (h);
                 ligne.removeFromLeft (10);
                 l.nom.setBounds (ligne.removeFromLeft (104));
-                l.seule.setBounds (ligne.removeFromRight (42).reduced (0, 1));
+                l.seule.setBounds (ligne.removeFromRight (26).reduced (0, 1));
                 ligne.removeFromRight (4);
                 l.pourcent.setBounds (ligne.removeFromRight (40));
                 l.slider.setBounds (ligne);
@@ -2001,11 +2400,11 @@ void PluginEditor::resized()
     area.removeFromTop (6);
     {
         auto ligne = area.removeFromTop (28);
-        for (auto* b : { &boutonAnnuler, &boutonRetablir })
-        {
-            b->setBounds (ligne.removeFromLeft (78));
-            ligne.removeFromLeft (4);
-        }
+        boutonAnnuler.setBounds (ligne.removeFromLeft (38));
+        ligne.removeFromLeft (4);
+        boutonRetablir.setBounds (ligne.removeFromLeft (38));
+        ligne.removeFromLeft (12);
+        boutonCrayon.setBounds (ligne.removeFromLeft (74));
         ligne.removeFromLeft (12);
         for (auto* b : { &boutonInverser, &boutonRetourner })
         {
@@ -2014,17 +2413,19 @@ void PluginEditor::resized()
         }
         for (auto* b : { &boutonDoubler, &boutonMoitie })
         {
-            b->setBounds (ligne.removeFromLeft (40));
+            b->setBounds (ligne.removeFromLeft (38));
             ligne.removeFromLeft (4);
         }
-        ligne.removeFromLeft (12);
+        ligne.removeFromLeft (8);
         for (auto* b : { &boutonCopier, &boutonColler })
         {
-            b->setBounds (ligne.removeFromLeft (70));
+            b->setBounds (ligne.removeFromLeft (66));
             ligne.removeFromLeft (4);
         }
-        boutonActif.setBounds (ligne.removeFromRight (70));
-        ligne.removeFromRight (6);
+        boutonActif.setBounds (ligne.removeFromRight (64));
+        ligne.removeFromRight (4);
+        boutonVisible.setBounds (ligne.removeFromRight (70));
+        ligne.removeFromRight (4);
         boutonMulti.setBounds (ligne.removeFromRight (130));
     }
 

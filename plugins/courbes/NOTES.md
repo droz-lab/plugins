@@ -50,6 +50,18 @@ de Bitwig ou d'un autre plugin. Un bouton "Generer" invente de nouvelles formes 
   - Verifie : tests communs 9/9, pluginval 5, test a part (8 CC, ternaire, N mesures synchro,
     prochaine = jouee, depart Note, etat, transformations).
 
+- v0.3.0 (2026-11-27) : retours de Zomban sur la v0.2.0.
+  - Evolution revue : la courbe qui evolue remplace la courbe affichee (et se modifie) ; l'evolution
+    repart de la courbe modifiee. Seed = point de depart (relecture = repart de la seed) ; "Revenir a la
+    seed", "Garder comme seed", seeds stockees dans le projet. Evolution eteinte : la seed suit la courbe.
+  - Multi-solo des familles (S) a la place de "seule" + "Aucun solo". Tirage toutes les 1/4, 1/2, 1... 32 mesures.
+  - Mode Crayon (trace simplifie par Douglas-Peucker, tolerance montee si > 128 points).
+  - Insectes qui suivent la lecture sur leur courbe (bouton Insectes), panneau Evolution masquable,
+    Visible par onglet (allumer un onglet le rend visible), fleches Annuler / Retablir.
+  - Retourner reecrit (segments vraiment joues a l'envers, marches comprises) ; Relancer seulement Hasard / Gates.
+  - Longueur : 2 mesures par defaut, jusqu'a 32 mesures.
+  - Verifie : tests communs 9/9, pluginval 5, test a part (seed, solo, 1/4 de mesure, retourner sur les 128 formes).
+
 ## A faire / idees
 
 - Tester dans Bitwig et Ableton le routage du CC (voir "Utilisation" ci-dessous) et noter ce qui marche.
