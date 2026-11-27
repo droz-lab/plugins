@@ -263,7 +263,8 @@ AUTEURS = {"yoy": "YoY", "zomban": "Zomban", "fx": "Fx", "equipe": "equipe"}
 
 
 def _git(*args: str) -> str:
-    r = subprocess.run(["git", *args], cwd=RACINE, capture_output=True, text=True)
+    # utf-8 dit en clair : sous Windows (essais.yml) le defaut abimerait les accents des plugin.json.
+    r = subprocess.run(["git", *args], cwd=RACINE, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return r.stdout if r.returncode == 0 else ""
 
 
