@@ -13,6 +13,8 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx. Ecarts voulus avec le setup de YoY : JUCE 9.0.6 au lieu de 8.0.9, VST3 seul (pas d'AU ni de Standalone, pour compiler plus vite : `-DDROZ_FORMATS="VST3;AU"` si besoin), pluginval fige en v1.0.4, Linux compile aussi, travail par PR.
 
+- 2026-11-27, Fx, verifie. pluginval 1.0.4 saute le validateur VST3 de Steinberg si on ne lui donne pas son chemin (`--vst3validator`) : le journal dit "Skipping vst3 validator". Un pluginval vert ne veut donc pas dire que ce validateur est passe. Suite dans `docs/METHODE.md`, partie 6.
+
 ## Son
 
 - 2026-11-27, Fx, verifie. Un lissage un pole calcule en `float` se fige a environ 3e-5 de sa cible pres de 1.0 : le pas devient plus petit que la precision. Le gain n'arrive jamais a l'unite. `droz::Smoother` garde son etat en `double`, et son test le verifie.

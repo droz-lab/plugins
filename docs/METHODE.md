@@ -96,6 +96,7 @@ A cocher dans la PR, par le responsable et un autre membre :
 - [ ] Boucle, saut de position et changement de tempo pendant la lecture : le plugin reste cale.
 - [ ] Automation de chaque reglage dessinee dans le DAW : pas de clic, pas d'escalier audible.
 - [ ] Un projet enregistre avec la version precedente se rouvre avec le meme son.
+- [ ] Si le plugin est cale au tempo : compare a un clic du DAW sur 64 mesures, aucun glissement. Reouverture du projet dans Bitwig : toujours cale.
 - [ ] Fenetre a 100, 125 et 150 % d'echelle Windows, et redimensionnee : lisible, fluide.
 - [ ] Essaye sur une deuxieme machine que celle du responsable.
 - [ ] Presets d'usine : 8 au moins, nommes, qui montrent l'etendue du plugin.
@@ -129,16 +130,42 @@ Elles sont dans `CLAUDE.md` (section "Regles de code") et ne sont pas recopiees 
 ### 5.3 Validation : pluginval, niveau 5 puis 10
 
 - Retenu : pluginval 1.0.4. Son auteur donne le niveau 5 comme minimum de compatibilite avec les hotes ; le gabarit de reference Pamplejuce le lance au niveau 10. D'ou nos deux paliers. https://github.com/Tracktion/pluginval
+- Ce que les niveaux ajoutent, lu dans ses sources : au niveau 6 le changement de frequence sans liberation, la restauration de l'etat parametre par parametre et le stress de l'editeur ; au 7 l'etat charge depuis un autre fil ; au 8 la comparaison exacte de l'etat et les parametres discrets. https://github.com/Tracktion/pluginval
 - Constate ici le 27/11/2026 : le modele et Test v0 passent deja le niveau 10.
-- A suivre : pluginval 2.0.0 est en beta, avec des rapports lisibles par une machine. On y passera quand il sera stable. https://github.com/Tracktion/pluginval/releases
+- Deux trous de la 1.0.4, constates dans nos journaux : le validateur VST3 de Steinberg est saute tant qu'on ne lui donne pas son chemin ("Skipping vst3 validator"), et le test d'allocations n'y est pas compile. Notre sonde couvre le second, le premier est en tete de la partie 6.
+- A suivre : pluginval 2.0.0 est en beta. Il integre le validateur Steinberg, le test d'allocations, des rapports lisibles par une machine et la comparaison a un WAV de reference. On y passe quand il est stable. https://github.com/Tracktion/pluginval/blob/develop/CHANGELIST.md
 
 ### 5.4 Temps reel
 
 - La regle vient de l'article de Ross Bencina : le fil audio ne doit rien faire dont la duree n'est pas bornee, donc ni allocation, ni verrou, ni entree-sortie. http://www.rossbencina.com/code/real-time-audio-programming-101-time-waits-for-nothing
 - Retenu aujourd'hui : notre sonde d'allocation dans les tests communs. Elle ne demande aucun outil en plus et tourne a chaque PR.
-- Retenu pour la suite : RealtimeSanitizer de clang. Une fonction marquee non bloquante est surveillee a l'execution, et toute allocation, tout verrou ou appel systeme y est signale. Il demande un clang recent, a installer sur la machine de compilation. https://clang.llvm.org/docs/RealtimeSanitizer.html
+- Verrous : pas de `std::mutex` cote audio, meme en essai de prise, car le relacher peut couter un appel systeme. Si un verrou est inevitable : verrou tournant, essai de prise seul cote audio, et on garde les dernieres valeurs connues s'il est pris. C'est la regle `SpinLock` de `CLAUDE.md`. https://timur.audio/using-locks-in-real-time-audio-processing-safely
+- Retenu pour la suite : RealtimeSanitizer de clang. Une fonction marquee non bloquante est surveillee a l'execution, et toute allocation, tout verrou ou appel systeme y est signale. Il demande clang 20, absent des machines Linux de GitHub (clang 16 a 18) et present sur leur image macOS 26. Pas de version Windows. https://clang.llvm.org/docs/RealtimeSanitizer.html et https://github.com/actions/runner-images
 
-### 5.5 Interface
+### 5.5 Synchronisation au tempo
+
+Nos premiers plugins sont cales au tempo. Regles a suivre, a ecrire dans la section "Cas limites" de la fiche :
+
+- La position de l'hote se lit seulement dans `processBlock`, et tout peut manquer : la position entiere, le tempo, le temps musical. Prevoir un repli (tempo par defaut, mode libre). https://docs.juce.com/master/classAudioPlayHead.html
+- La phase d'un effet rythmique se deduit du temps musical de l'hote a chaque bloc, pas d'un compteur qui tourne tout seul. On compare la position attendue a la position recue : un ecart est un saut (boucle, deplacement) et se traite par recalage avec un court fondu. https://forum.juce.com/t/syncing-to-getposition-issue/56030
+- La position donnee vaut pour le debut du bloc. Certains hotes coupent le bloc au point de boucle, d'autres non : ne pas en dependre. https://forum.juce.com/t/can-a-daw-loop-within-a-sample-buffer-block-in-processblock/56372
+- Pieges d'hotes rapportes : Bitwig peut donner un temps musical faux apres reouverture du projet, FL Studio envoie des blocs de tailles irregulieres, certains hotes des blocs vides. https://forum.juce.com/t/what-daws-have-a-unique-way-of-doing-things-and-deserve-special-scrutiny-when-testing-before-plugin-release/57443
+- Le test "transport" verifie qu'on ne plante pas. Il ne verifie pas encore qu'on reste cale a l'echantillon : partie 6.
+
+### 5.6 Qualite du son
+
+- Toute non-linearite (saturation, ecretage, repli) cree du repliement. Parade : surechantillonnage, ou antiderivee (ADAA) combinee a un surechantillonnage 2x. La latence ajoutee s'annonce a l'hote. https://ccrma.stanford.edu/~jatin/Notebooks/adaa.html et https://docs.juce.com/master/classdsp_1_1Oversampling.html
+- Filtre module vite : forme a variables d'etat trapezoidale plutot qu'un biquad direct, qui peut partir en vrille quand la coupure bouge. http://cytomic.com/files/dsp/SvfLinearTrapOptimised2.pdf
+- Contournement (bypass) : sans clic, et si le plugin a de la latence, le signal contourne sort retarde d'autant. https://steinbergmedia.github.io/vst3_dev_portal/pages/FAQ/Processing.html
+- Un seul `juce::ScopedNoDenormals`, en tete de `processBlock`.
+
+### 5.7 Etat et automation
+
+- Apres une sortie, on ajoute des parametres en fin de liste et on n'en retire pas : beaucoup d'hotes rangent l'automation par position, et retirer un parametre perd celle des projets existants. https://forum.juce.com/t/daws-not-remembering-parameter-automation-properly/62520
+- Un parametre ajoute prend, pour un ancien projet, une valeur qui ne change pas le son.
+- L'hote peut lire ou ecrire l'etat pendant que le son tourne, depuis un autre fil.
+
+### 5.8 Interface
 
 - Retenu : interface JUCE native avec `droz::ui`. Meme rendu partout, testable sans DAW, capture automatique.
 - Ecarte pour l'instant, interface web (WebView de JUCE) : rechargement a chaud et beaucoup d'exemples, mais un affichage casse a ete signale dans Ableton Live 12.4.1 a 125 % d'echelle, et le rendu depend du navigateur du systeme. https://forum.juce.com/t/juce-webviewplugindemo-not-showing-properly-in-ableton-live/68963
@@ -146,24 +173,24 @@ Elles sont dans `CLAUDE.md` (section "Regles de code") et ne sont pas recopiees 
 - A mesurer : le rendu Direct2D de JUCE sous Windows a connu des lenteurs. Tout visuel anime se chronometre sur une machine modeste avant une 1.0.0. https://forum.juce.com/t/direct2d-performance-update/65008
 - Utile : melatonin_blur (MIT) pour ombres et flous avec cache, melatonin_inspector (MIT) pour inspecter une interface en Debug. https://github.com/sudara/melatonin_blur
 
-### 5.6 Chaine de reference
+### 5.9 Chaine de reference
 
 - Pamplejuce (MIT) est le gabarit le plus suivi : JUCE 9, tests Catch2 et mesures de performance, pluginval niveau 10, signature Windows et notarisation Mac, installeurs. On ne le copie pas, notre chaine fait deja l'essentiel ; on s'y compare a chaque evolution. https://github.com/sudara/pamplejuce
 - Ce qu'il a et qu'on n'a pas : signature, notarisation, mesures de performance en integration continue, format CLAP.
 
-### 5.7 Licence (a trancher ensemble)
+### 5.10 Licence (a trancher ensemble)
 
 - Le depot est public. JUCE est gratuit sous AGPLv3 (code ouvert), ou sous son palier Starter (code ferme, revenus annuels sous 20 000 $). Au-dela : 40 $ par mois et par poste. https://juce.com/get-juce/
 - AGPLv3 est le choix coherent avec un depot public, et il autorise les modules GPLv3 (une partie de chowdsp_utils). Starter les interdit. https://github.com/Chowdhury-DSP/chowdsp_utils
 - Tant que ce n'est pas tranche : aucun module GPLv3 dans le depot.
 
-### 5.8 Signature (a chiffrer, pas commencee)
+### 5.11 Signature (a chiffrer, pas commencee)
 
 - Windows : Azure Artifact Signing, a partir de 9,99 $ par mois. En Europe il n'accepte que les organisations. Une association loi 1901 est une personne morale, mais le cas n'est documente nulle part : a tenter au nom de Droz RecordZ, avec SIREN, site et adresse mail sur son domaine. https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart
 - Windows, sinon : SignPath Foundation, gratuit pour un projet a licence libre (l'editeur affiche est SignPath Foundation), ou Certum Open Source, 49 EUR au nom d'une personne. https://signpath.org/terms et https://shop.certum.eu/open-source-code-signing-on-simplysign.html
 - Mac : compte developpeur Apple, 99 USD par an, avec un numero D-U-N-S pour une organisation. Une exemption existe pour certains organismes sans but lucratif, sans garantie pour une association simplement declaree. https://developer.apple.com/help/account/membership/program-enrollment/
 
-### 5.9 Travailler avec un assistant de code
+### 5.12 Travailler avec un assistant de code
 
 - Ce que les projets de reference ecrivent dans leurs regles : lire avant de modifier, faire valider le plan avant un gros changement, changements minimaux, ne rien affirmer sur du code non lu. https://raw.githubusercontent.com/Tracktion/pluginval/develop/CLAUDE.md
 - Pieges rapportes par ceux qui l'ont fait : architecture qui part en spaghetti, traitement du signal naif qui "marche" mais sonne mal, premier diagnostic de l'assistant faux. La parade commune : des tests ecrits, et la comparaison a une reference sur de vrais fichiers. https://forum.juce.com/t/how-can-i-best-use-ai-to-co-develop-my-plugin-with-juce/67558
@@ -173,14 +200,17 @@ Elles sont dans `CLAUDE.md` (section "Regles de code") et ne sont pas recopiees 
 
 Par ordre de rendement. Chaque point est une PR `commun:`.
 
-1. RealtimeSanitizer dans le Verdict (verrous et appels systeme, que la sonde ne voit pas).
-2. Rendus de reference : un WAV de sortie garde par plugin et par boucle, compare a chaque PR. Un son qui change sans qu'on l'ait voulu fait rougir la PR.
-3. Mesure de repliement pour tout plugin non lineaire (balayage sinus, energie sous le fondamental).
-4. Charge mesuree et comparee d'une version a l'autre, plutot qu'un seuil fixe.
-5. Validateur VST3 de Steinberg en plus de pluginval.
-6. Format CLAP sur le modele, valide par clap-validator.
-7. Signature Windows, puis notarisation Mac.
-8. Presets : format commun et presets d'usine embarques, dans `libs/`.
+1. Validateur VST3 de Steinberg : aujourd'hui saute par pluginval. Le compiler et le donner a pluginval, ou passer a pluginval 2 des qu'il est stable.
+2. Tete de lecture de test plus exigeante : un effet cale au tempo doit donner la meme forme, a l'echantillon, quelle que soit la taille de bloc, et se recaler apres une boucle ou un saut.
+3. Latence et contournement : une impulsion ressort a la latence annoncee, le signal contourne s'annule contre l'entree retardee.
+4. Photo des parametres (identifiant, position, plage, defaut) gardee dans le depot : un parametre publie qui change fait rougir la PR. Et rechargement des etats de chaque version publiee.
+5. Rendus de reference : un WAV de sortie garde par plugin et par boucle, compare a chaque PR. Un son qui change sans qu'on l'ait voulu fait rougir la PR.
+6. RealtimeSanitizer (verrous et appels systeme, que la sonde ne voit pas), sur l'image macOS 26 ou avec clang 20 installe sous Linux.
+7. Mesure de repliement pour tout plugin non lineaire (sinus a fort gain, spectre, tout pic hors harmoniques sous un seuil).
+8. Charge mesuree et comparee d'une version a l'autre, plutot qu'un seuil fixe. Les machines partagees varient de 10 a 20 % : seuil large.
+9. Format CLAP sur le modele, valide par clap-validator.
+10. Signature Windows, puis notarisation Mac.
+11. Presets : format commun et presets d'usine embarques, dans `libs/`.
 
 ## 7. Faire evoluer la methode
 
