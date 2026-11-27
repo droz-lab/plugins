@@ -46,6 +46,11 @@ Une entree par lecon : date, prenom, le piege, la parade. Ajout libre par PR, sa
 
 - 2026-11-27, Fx. Le centre (`centre.yml`) ecrit sa page dans le texte de la Release `dernier`, pas dans le depot : `main` est protegee, un robot ne peut pas y pousser, et une page dans le depot demanderait une PR a chaque mise a jour.
 
+- 2026-11-27, Fx. Droz Software Center : un programme lance par `CreateProcess` (donc `juce::ChildProcess`) ne peut pas demander les droits d'administrateur, l'appel echoue. Passer par `ShellExecuteEx` : verbe `open` pour un installeur qui les demande lui-meme, `runas` pour les forcer. Voir `apps/centre/src/Systeme.cpp`.
+- 2026-11-27, Fx. Un plugin charge dans un DAW se lit encore tres bien : ouvrir son fichier en lecture ne dit rien. Pour savoir s'il est verrouille : le gestionnaire de redemarrage de Windows (`RmGetList`, qui donne aussi le nom du programme), ou une ouverture en ecriture qui echoue avec une erreur de partage.
+- 2026-11-27, Fx. Un workflow lance par `pull_request` n'a pas le droit d'ecrire une Release. Pour publier a partir d'un run de PR (les essais) : un second workflow lance par `workflow_run`, qui tourne avec le code de `main`. Il ne doit rien executer de la branche, et ignorer les PR venues d'un autre depot.
+- 2026-11-27, Fx, non verifie. Une appli fenetree lancee depuis PowerShell rend la main tout de suite et n'affiche rien dans la console : `Start-Process -Wait -PassThru` pour attendre et lire son code de sortie, et un fichier journal pour son texte (`--journal`).
+
 ## Habillage
 
 - 2026-11-27, Fx, verifie. `setLookAndFeel` appele avant `addAndMakeVisible` : les zones de texte des potards gardent l'ancien style (cadre gris). L'appeler apres avoir ajoute tous les controles.

@@ -48,7 +48,7 @@ Instrument : le modele est un effet. Premiere chose a faire dans `PluginProcesso
 1. Les tests communs passent (`ctest`, ou le run Actions) : sortie finie, retour au silence, etat sauvegarde et recharge, pas de clic, interface qui s'ouvre et se rouvre, aucune allocation dans `processBlock`, transport (arret, boucle, sauts de tempo), reprise a une autre frequence.
 2. pluginval passe : niveau 5 en chantier (version 0.x), niveau 10 au palier pro (1.0.0 et plus), ou toute alerte des tests communs bloque aussi. Passer en 1.0.0 se decide avec la liste de `docs/METHODE.md`.
 3. Tu as produit une capture de l'interface (regarde-la toi-meme, compare-la a `docs/habillage.png`, puis envoie-la : la personne est peut-etre sur son telephone) et au moins un rendu WAV sec + traite, et tu dis quoi ecouter et ou le telecharger.
-4. `plugins/<dossier>/FICHE.md` decrit le plugin tel qu'il est, `NOTES.md` est a jour. Publier = monter `version` dans `plugin.json`, relancer `python tools/droz.py vitrine` (tableau du README) et fusionner : la sortie part toute seule, rien d'autre a faire ni a proposer.
+4. `plugins/<dossier>/FICHE.md` decrit le plugin tel qu'il est, `NOTES.md` est a jour. Publier = monter `version` dans `plugin.json` et fusionner : la sortie part toute seule et le Droz Software Center la propose, rien d'autre a faire ni a proposer.
 
 ## Regles de code
 

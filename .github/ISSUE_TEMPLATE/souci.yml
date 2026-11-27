@@ -8,7 +8,7 @@ body:
     attributes:
       label: Plugin et version
       description: La version est en haut a droite de la fenetre du plugin.
-      placeholder: Droz Test v0 0.1.2
+      placeholder: Droz Courbes 0.1.2
     validations:
       required: true
   - type: input

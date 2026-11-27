@@ -1,0 +1,64 @@
+name: Essais
+
+# Un Verdict vert sur une branche rend son plugin installable "a l'essai", sans geste de l'auteur :
+# l'installeur Windows du run est pose sur la page fixe "essais", ou il remplace le precedent, et
+# essais.json dit de quel commit il vient. Le catalogue (centre.yml) le propose alors dans le
+# Droz Software Center. Quand le plugin arrive dans main ou que sa branche disparait, l'essai est retire.
+#
+# Tourne avec le code de main, jamais celui de la branche : de la branche, seuls les plugin.json sont lus.
+# Les PR venues d'un autre depot (fork) sont ignorees.
+
+on:
+  workflow_run:
+    workflows: [Compilation]
+    types: [completed]
+
+permissions:
+  contents: write # poser les installeurs sur la page "essais"
+  actions: read   # recuperer les fichiers du run
+
+jobs:
+  essais:
+    name: Installeurs d'essai
+    # Sur le job, pas sur le workflow : les runs sautes (main, forks) n'annulent pas un essai en attente.
+    concurrency:
+      group: essais
+      cancel-in-progress: false
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch != 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Poser les installeurs du run sur la page "essais"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.event.workflow_run.id }}
+          COMMIT: ${{ github.event.workflow_run.head_sha }}
+          BRANCHE: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if ! gh run download "$RUN" --name plugins-Windows --dir recu 2> /dev/null; then
+            echo "Ce run n'a compile aucun plugin pour Windows : rien a poser."
+            mkdir -p recu
+          fi
+          if ! gh release view essais > /dev/null 2>&1; then
+            gh release create essais --title "Droz Lab : essais des chantiers" --prerelease --latest=false \
+              --notes "Installeurs Windows des plugins en chantier, refaits a chaque Verdict vert de leur branche. Un fichier par plugin, toujours le dernier. Le plus simple pour les installer : le Droz Software Center."
+          fi
+          gh release download essais --pattern essais.json --output essais.json 2> /dev/null || echo '{}' > essais.json
+          git fetch --quiet --depth 1 origin "$COMMIT"
+          python3 tools/droz.py essais "$COMMIT" "$BRANCHE" recu essais.json > plan.json
+          cat plan.json
+          python3 - << 'PY'
+          import json, subprocess
+          plan = json.load(open("plan.json"))
+          for fichier in plan["poser"]:
+              subprocess.run(["gh", "release", "upload", "essais", fichier, "--clobber"], check=True)
+          subprocess.run(["gh", "release", "upload", "essais", "essais.json", "--clobber"], check=True)
+          for nom in plan["retirer"]:
+              subprocess.run(["gh", "release", "delete-asset", "essais", nom, "--yes"], check=False)
+          PY
+          python3 -c "import json; print('Essais poses :', ', '.join(json.load(open('plan.json'))['poser']) or 'aucun')" >> "$GITHUB_STEP_SUMMARY"
